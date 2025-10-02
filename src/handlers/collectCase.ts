@@ -1,11 +1,14 @@
-import { bad } from "../shared/responses.js";
+import { bad, createErrorResponse, getRequestOrigin, handleCorsPreflight, jsonResponse } from "../shared/responses.js";
 import { requireAuth, verifyMerchantOwnership } from "../shared/auth.js";
-import { createAuditLog, AuditAction } from "../shared/auditLog.js";
 import { StartExecutionCommand, SFNClient as StepFunctionsClient } from "@aws-sdk/client-sfn";
 
 const sfn = new StepFunctionsClient({});
 
 export async function handler(event:any){
+  const origin = getRequestOrigin(event);
+  const preflight = handleCorsPreflight(event, 'POST,OPTIONS');
+  if (preflight) return preflight;
+
   // REQUIRE AUTHENTICATION
   const authResult = await requireAuth(event);
   if ('statusCode' in authResult) {
@@ -17,15 +20,12 @@ export async function handler(event:any){
   const qs = event.queryStringParameters || {};
   const merchantId = qs.merchant || authContext.merchant_id;
   
-  if(!merchantId || !id) return bad("missing merchant or id");
+  if(!merchantId || !id) return bad("missing merchant or id", { origin });
   
   // VERIFY USER OWNS THIS MERCHANT ACCOUNT
   const hasAccess = await verifyMerchantOwnership(authContext, merchantId);
   if (!hasAccess) {
-    return {
-      statusCode: 403,
-      body: JSON.stringify({ error: 'Access denied to this merchant account' })
-    };
+    return createErrorResponse(403, 'Access denied to this merchant account', undefined, { origin });
   }
 
   await sfn.send(new StartExecutionCommand({
@@ -33,5 +33,5 @@ export async function handler(event:any){
     input: JSON.stringify({ merchant: { stripe_account_id: merchantId }, dispute_id: id })
   }));
 
-  return { statusCode:202, body:'started' };
+  return jsonResponse(202, { status: 'started' }, { origin });
 }

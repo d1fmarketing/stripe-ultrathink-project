@@ -1,11 +1,15 @@
 import crypto from 'crypto';
-import { ok, bad } from "../shared/responses.js";
+import { bad, getRequestOrigin, handleCorsPreflight, redirect } from "../shared/responses.js";
 
 const STRIPE_CLIENT_ID = process.env.STRIPE_CLIENT_ID!;
 const STRIPE_REDIRECT_URI = process.env.STRIPE_REDIRECT_URI!;
 
 export async function handler(event: any){
-  if(!STRIPE_CLIENT_ID || !STRIPE_REDIRECT_URI) return bad("Stripe not configured");
+  const origin = getRequestOrigin(event);
+  const preflight = handleCorsPreflight(event, 'GET,OPTIONS');
+  if (preflight) return preflight;
+
+  if(!STRIPE_CLIENT_ID || !STRIPE_REDIRECT_URI) return bad("Stripe not configured", { origin });
   
   // Get Firebase UID from query parameters to link accounts
   const qs = event.queryStringParameters || {};
@@ -30,12 +34,14 @@ export async function handler(event: any){
   }).toString();
   
   // Return 302 redirect instead of 200 with URL
-  return {
-    statusCode: 302,
-    headers: {
-      'Location': `https://connect.stripe.com/oauth/authorize?${params}`,
-      'Cache-Control': 'no-cache, no-store, must-revalidate'
-    },
-    body: ''
-  };
+  return redirect(
+    `https://connect.stripe.com/oauth/authorize?${params}`,
+    302,
+    {
+      origin,
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate'
+      }
+    }
+  );
 }

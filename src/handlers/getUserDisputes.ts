@@ -1,4 +1,4 @@
-import { ok, bad } from "../shared/responses.js";
+import { ok, bad, getRequestOrigin, handleCorsPreflight } from "../shared/responses.js";
 import { listCases } from "../shared/db.js";
 import { requireAuth } from "../shared/auth.js";
 
@@ -7,6 +7,10 @@ import { requireAuth } from "../shared/auth.js";
  * No merchant parameter needed - uses user's own merchant account
  */
 export async function handler(event: any) {
+  const origin = getRequestOrigin(event);
+  const preflight = handleCorsPreflight(event, 'GET,OPTIONS');
+  if (preflight) return preflight;
+
   // REQUIRE AUTHENTICATION
   const authResult = await requireAuth(event);
   if ('statusCode' in authResult) {
@@ -19,7 +23,7 @@ export async function handler(event: any) {
     return ok({
       items: [],
       message: 'No Stripe account connected. Please connect your Stripe account to see disputes.'
-    });
+    }, { origin });
   }
   
   // Get query parameters
@@ -58,10 +62,10 @@ export async function handler(event: any) {
       items: disputes,
       stats,
       merchant_id: authContext.merchant_id
-    });
-    
+    }, { origin });
+
   } catch (error: any) {
     console.error('Error fetching user disputes:', error);
-    return bad('Failed to fetch disputes: ' + error.message);
+    return bad('Failed to fetch disputes: ' + error.message, { origin });
   }
 }

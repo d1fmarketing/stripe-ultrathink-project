@@ -1,6 +1,7 @@
 import { ScanCommand } from "@aws-sdk/lib-dynamodb";
 import { ddb } from "../shared/ddb.js";
 import { putMerchant } from "../shared/db.js";
+import { createErrorResponse, jsonResponse } from "../shared/responses.js";
 
 /**
  * Scheduled Lambda to refresh OAuth tokens before they expire
@@ -81,16 +82,10 @@ export async function handler(event: any) {
     
     console.log('Token refresh results:', results);
     
-    return {
-      statusCode: 200,
-      body: JSON.stringify(results)
-    };
-    
+    return jsonResponse(200, results);
+
   } catch (error: any) {
     console.error('Auto refresh error:', error);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: error.message })
-    };
+    return createErrorResponse(500, 'Auto refresh error', { message: error.message });
   }
 }

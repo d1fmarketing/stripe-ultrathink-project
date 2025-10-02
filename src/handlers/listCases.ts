@@ -1,4 +1,4 @@
-import { ok, bad } from "../shared/responses.js";
+import { ok, bad, createErrorResponse, getRequestOrigin, handleCorsPreflight } from "../shared/responses.js";
 import { listCases } from "../shared/db.js";
 import { requireAuth, verifyMerchantOwnership } from "../shared/auth.js";
 import { rateLimitMiddleware } from "../shared/rateLimit.js";
@@ -21,6 +21,10 @@ function getRedis() {
 }
 
 export async function handler(event:any){
+  const origin = getRequestOrigin(event);
+  const preflight = handleCorsPreflight(event, 'GET,OPTIONS');
+  if (preflight) return preflight;
+
   // Check rate limit first
   const rateLimitResult = await rateLimitMiddleware(event);
   if (rateLimitResult) {
@@ -54,15 +58,12 @@ export async function handler(event:any){
     merchantId = authContext.merchant_id;
   }
   
-  if(!merchantId) return bad("missing merchant param or no connected Stripe account");
+  if(!merchantId) return bad("missing merchant param or no connected Stripe account", { origin });
   
   // VERIFY USER OWNS THIS MERCHANT ACCOUNT
   const hasAccess = await verifyMerchantOwnership(authContext, merchantId);
   if (!hasAccess) {
-    return {
-      statusCode: 403,
-      body: JSON.stringify({ error: 'Access denied to this merchant account' })
-    };
+    return createErrorResponse(403, 'Access denied to this merchant account', undefined, { origin });
   }
   
   // Try Redis cache first for performance
@@ -74,7 +75,7 @@ export async function handler(event:any){
       const cached = await redisClient.get(cacheKey);
       if (cached) {
         console.log(`[CACHE HIT] Returning cached cases for ${merchantId}`);
-        return ok(JSON.parse(cached));
+        return ok(JSON.parse(cached), { origin });
       }
     } catch (error) {
       console.warn('[CACHE] Redis read failed, falling back to DB:', error);
@@ -107,6 +108,6 @@ export async function handler(event:any){
       // Continue even if caching fails
     }
   }
-  
-  return ok(response);
+
+  return ok(response, { origin });
 }

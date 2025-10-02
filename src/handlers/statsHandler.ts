@@ -1,6 +1,7 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import { DynamoDBClient, ScanCommand, QueryCommand } from '@aws-sdk/client-dynamodb';
+import { DynamoDBClient, ScanCommand } from '@aws-sdk/client-dynamodb';
 import Redis from 'ioredis';
+import { getRequestOrigin, handleCorsPreflight, jsonResponse } from '../shared/responses.js';
 
 const dynamodb = new DynamoDBClient({ region: 'us-east-1' });
 const CASES_TABLE = process.env.CASES_TABLE || 'chargeback-autopilot-stripe-prod-CasesTable-1LPIUKCN82FYI';
@@ -22,14 +23,12 @@ interface StatsResponse {
 
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   const startTime = Date.now();
-  
-  // CORS headers
-  const headers = {
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-    'Access-Control-Allow-Methods': 'GET,OPTIONS'
-  };
+  const origin = getRequestOrigin(event);
+
+  const preflight = handleCorsPreflight(event, 'GET,OPTIONS');
+  if (preflight) {
+    return preflight;
+  }
 
   try {
     // Try Redis cache first
@@ -154,15 +153,11 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     const processingTime = Date.now() - startTime;
     console.log(`Stats endpoint processed in ${processingTime}ms`);
     
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({
-        success: true,
-        data: stats,
-        processingTime: `${processingTime}ms`
-      })
-    };
+    return jsonResponse(200, {
+      success: true,
+      data: stats,
+      processingTime: `${processingTime}ms`
+    }, { origin });
     
   } catch (error) {
     console.error('Error in stats handler:', error);
@@ -182,15 +177,11 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       dataSource: 'database'
     };
     
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({
-        success: true,
-        data: defaultStats,
-        processingTime: `${Date.now() - startTime}ms`,
-        note: 'Using default metrics due to temporary issue'
-      })
-    };
+    return jsonResponse(200, {
+      success: true,
+      data: defaultStats,
+      processingTime: `${Date.now() - startTime}ms`,
+      note: 'Using default metrics due to temporary issue'
+    }, { origin });
   }
 };

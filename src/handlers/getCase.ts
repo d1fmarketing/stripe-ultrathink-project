@@ -1,9 +1,13 @@
-import { ok, bad } from "../shared/responses.js";
+import { ok, bad, createErrorResponse, getRequestOrigin, handleCorsPreflight } from "../shared/responses.js";
 import { getCase } from "../shared/db.js";
 import { requireAuth, verifyMerchantOwnership } from "../shared/auth.js";
 import { validationMiddleware, commonSchemas } from "../shared/validation.js";
 
 export async function handler(event:any){
+  const origin = getRequestOrigin(event);
+  const preflight = handleCorsPreflight(event, 'GET,OPTIONS');
+  if (preflight) return preflight;
+
   // Validate input first
   const validationSchema = {
     ...commonSchemas.disputeId,
@@ -31,17 +35,14 @@ export async function handler(event:any){
     merchantId = authContext.merchant_id;
   }
   
-  if(!merchantId) return bad("missing merchant param or no connected Stripe account");
+  if(!merchantId) return bad("missing merchant param or no connected Stripe account", { origin });
   
   // VERIFY USER OWNS THIS MERCHANT ACCOUNT
   const hasAccess = await verifyMerchantOwnership(authContext, merchantId);
   if (!hasAccess) {
-    return {
-      statusCode: 403,
-      body: JSON.stringify({ error: 'Access denied to this merchant account' })
-    };
+    return createErrorResponse(403, 'Access denied to this merchant account', undefined, { origin });
   }
-  
+
   const item = await getCase(merchantId, id);
-  return ok({ item });
+  return ok({ item }, { origin });
 }

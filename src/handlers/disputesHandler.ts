@@ -3,6 +3,7 @@ import { requireAuth, verifyMerchantOwnership } from '../shared/auth.js';
 import { listCases } from '../shared/db.js';
 import { validationMiddleware, commonSchemas } from '../shared/validation.js';
 import Stripe from 'stripe';
+import { createErrorResponse, getRequestOrigin, handleCorsPreflight, jsonResponse } from '../shared/responses.js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion: '2025-07-30.basil' });
 
@@ -31,22 +32,11 @@ interface Dispute {
 
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   const startTime = Date.now();
-  
-  // CORS headers
-  const headers = {
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-    'Access-Control-Allow-Methods': 'GET,OPTIONS'
-  };
+  const origin = getRequestOrigin(event);
 
-  // Handle OPTIONS request for CORS
-  if (event.httpMethod === 'OPTIONS') {
-    return {
-      statusCode: 200,
-      headers,
-      body: ''
-    };
+  const preflight = handleCorsPreflight(event, 'GET,OPTIONS');
+  if (preflight) {
+    return preflight;
   }
 
   try {
@@ -60,7 +50,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     if (validationResult) {
       return validationResult; // Return 400 if validation fails
     }
-    
+
     // REQUIRE AUTHENTICATION
     const authResult = await requireAuth(event);
     if ('statusCode' in authResult) {
@@ -73,21 +63,13 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     let merchantId = input.merchant || authContext.merchant_id || '';
     
     if (!merchantId) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'No merchant account specified or connected' })
-      };
+      return createErrorResponse(400, 'No merchant account specified or connected', undefined, { origin });
     }
     
     // VERIFY USER OWNS THIS MERCHANT ACCOUNT
     const hasAccess = await verifyMerchantOwnership(authContext, merchantId);
     if (!hasAccess) {
-      return {
-        statusCode: 403,
-        headers,
-        body: JSON.stringify({ error: 'Access denied to this merchant account' })
-      };
+      return createErrorResponse(403, 'Access denied to this merchant account', undefined, { origin });
     }
     
     // Get REAL disputes from Stripe
@@ -139,33 +121,25 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     
     const processingTime = Date.now() - startTime;
     
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({
-        success: true,
-        authenticated: true,
-        merchant_id: merchantId,
-        data: {
-          disputes,
-          summary
-        },
-        processingTime: `${processingTime}ms`,
-        timestamp: new Date().toISOString()
-      })
-    };
-    
+    return jsonResponse(200, {
+      success: true,
+      authenticated: true,
+      merchant_id: merchantId,
+      data: {
+        disputes,
+        summary
+      },
+      processingTime: `${processingTime}ms`,
+      timestamp: new Date().toISOString()
+    }, { origin });
+
   } catch (error) {
     console.error('Error in disputes handler:', error);
-    
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({
-        success: false,
-        error: 'Internal server error',
-        processingTime: `${Date.now() - startTime}ms`
-      })
-    };
+
+    return jsonResponse(500, {
+      success: false,
+      error: 'Internal server error',
+      processingTime: `${Date.now() - startTime}ms`
+    }, { origin });
   }
 };
