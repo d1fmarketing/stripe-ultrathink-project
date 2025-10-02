@@ -1,10 +1,10 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, GetCommand } from '@aws-sdk/lib-dynamodb';
-import { SSMClient, GetParameterCommand } from '@aws-sdk/client-ssm';
+import { getSecretValue, getOptionalSecretValue } from './secretsManager';
+import { getStripeClient } from './stripeClient';
 
 const client = new DynamoDBClient({});
 const ddb = DynamoDBDocumentClient.from(client);
-const ssm = new SSMClient({});
 
 const MERCHANTS_TABLE = process.env.MERCHANTS_TABLE || 'MerchantsTable';
 
@@ -37,38 +37,30 @@ export async function getMerchantWebhookSecret(merchantId: string): Promise<stri
     console.error(`[WEBHOOK] Error fetching merchant webhook secret:`, error);
   }
   
-  // Fallback to global webhook secret from environment/SSM
+  // Fallback to Secrets Manager global secrets
+  const connectSecret = await getConnectWebhookSecret();
+  if (connectSecret) {
+    console.log('[WEBHOOK] Using global connect webhook secret from Secrets Manager');
+    return connectSecret;
+  }
+
   return getGlobalWebhookSecret();
 }
 
 /**
  * Get the global webhook secret from environment or SSM
  */
-async function getGlobalWebhookSecret(): Promise<string> {
-  // First check environment variable
-  if (process.env.STRIPE_CONNECT_WEBHOOK_SECRET) {
-    console.log('[WEBHOOK] Using global webhook secret from environment');
-    return process.env.STRIPE_CONNECT_WEBHOOK_SECRET;
+export async function getGlobalWebhookSecret(): Promise<string> {
+  const secret = (await getSecretValue('STRIPE_WEBHOOK_SECRET')).trim();
+  if (!secret) {
+    throw new Error('STRIPE_WEBHOOK_SECRET is not configured in Secrets Manager');
   }
-  
-  // Try to fetch from SSM Parameter Store
-  try {
-    const result = await ssm.send(new GetParameterCommand({
-      Name: '/stripedshield/prod/STRIPE_WEBHOOK_SECRET',
-      WithDecryption: true
-    }));
-    
-    if (result.Parameter?.Value) {
-      console.log('[WEBHOOK] Using global webhook secret from SSM');
-      return result.Parameter.Value;
-    }
-  } catch (error) {
-    console.error('[WEBHOOK] Error fetching webhook secret from SSM:', error);
-  }
-  
-  // Last resort fallback - should not happen in production
-  console.error('[WEBHOOK] WARNING: No webhook secret found, webhooks will fail validation!');
-  throw new Error('No webhook secret configured');
+  return secret;
+}
+
+async function getConnectWebhookSecret(): Promise<string | undefined> {
+  const secret = await getOptionalSecretValue('STRIPE_CONNECT_WEBHOOK_SECRET');
+  return secret?.trim() || undefined;
 }
 
 /**
@@ -82,15 +74,14 @@ export async function validateWebhookSignature(
   signature: string,
   accountId?: string
 ): Promise<boolean> {
-  const Stripe = require('stripe');
-  const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion: '2025-07-30.basil' });
+  const stripe = await getStripeClient();
   
   try {
     // Get the appropriate webhook secret
-    const webhookSecret = accountId 
+    const webhookSecret = accountId
       ? await getMerchantWebhookSecret(accountId)
       : await getGlobalWebhookSecret();
-    
+
     // Verify the webhook signature
     const event = stripe.webhooks.constructEvent(
       payload,

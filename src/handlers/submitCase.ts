@@ -2,6 +2,8 @@ import { ok, bad } from "../shared/responses.js";
 import { requireAuth, verifyMerchantOwnership } from "../shared/auth.js";
 import { createAuditLog, AuditAction } from "../shared/auditLog.js";
 import Stripe from 'stripe';
+import { getStripeClient } from '../shared/stripeClient';
+import { getOptionalSecretValue } from '../shared/secretsManager';
 import { 
   predictWinRate, 
   shouldSubmit,
@@ -21,7 +23,6 @@ import {
 import { CE3Detector } from "../ce3-engine/ce3Detector.js";
 import { TimingOptimizer } from "../ai-features/timingOptimizer.js";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion:'2025-07-30.basil' });
 const cloudwatch = new CloudWatch({});
 
 // Helper to publish metrics
@@ -76,7 +77,8 @@ export async function handler(event:any){
 
   try {
     // Get dispute details with charge expanded
-    const dispute = await stripe.disputes.retrieve(id, 
+    const stripe = await getStripeClient();
+    const dispute = await stripe.disputes.retrieve(id,
       { expand: ['charge'] },
       { stripeAccount: merchantId }
     );
@@ -174,11 +176,12 @@ export async function handler(event:any){
     let timingRecommendation = null;
     let shouldDelay = false;
     
-    if (process.env.OPENAI_API_KEY && !forceSubmit) {
+    const openAiKey = await getOptionalSecretValue('OPENAI_API_KEY');
+    if (openAiKey && !forceSubmit) {
       try {
         // Initialize timing optimizer with REAL implementation
         const timingOptimizer = new TimingOptimizer({
-          openaiApiKey: process.env.OPENAI_API_KEY,
+          openaiApiKey: openAiKey,
           model: 'gpt-5', // Using GPT-5 exclusive access
           temperature: Number(process.env.AI_TEMPERATURE || '0.7'),
           maxTokens: Number(process.env.AI_MAX_TOKENS || '500')

@@ -1,10 +1,5 @@
-import OpenAI from 'openai';
 import type { EvidenceBundle } from './smartEvidenceCollector';
-
-// Initialize OpenAI client
-const openai = process.env.OPENAI_API_KEY 
-  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
-  : null;
+import { getOpenAIClient } from '../shared/openaiClient';
 
 // Use GPT-5 Exclusive
 const MODEL = process.env.AI_MODEL || 'gpt-5';
@@ -22,9 +17,10 @@ export type NarrativeOptions = {
  * Professional tone optimized for card network reviewers
  */
 export async function compose(
-  bundle: EvidenceBundle, 
+  bundle: EvidenceBundle,
   options: NarrativeOptions = {}
 ): Promise<string | undefined> {
+  const openai = await getOpenAIClient();
   if (!openai) {
     console.warn('[narrativeWriter] OpenAI not configured, skipping narrative generation');
     return undefined;
@@ -291,6 +287,7 @@ export async function enhance(
   existingNarrative: string,
   additionalContext: string
 ): Promise<string | undefined> {
+  const openai = await getOpenAIClient();
   if (!openai) return existingNarrative;
   
   try {

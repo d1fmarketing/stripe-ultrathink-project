@@ -1,6 +1,7 @@
 import { ScanCommand } from "@aws-sdk/lib-dynamodb";
 import { ddb } from "../shared/ddb.js";
 import { putMerchant } from "../shared/db.js";
+import { getStripeSecret } from '../shared/stripeClient';
 
 /**
  * Scheduled Lambda to refresh OAuth tokens before they expire
@@ -16,9 +17,11 @@ export async function handler(event: any) {
       TableName: MERCHANTS_TABLE,
       FilterExpression: 'attribute_exists(access_token) AND attribute_exists(refresh_token)'
     }));
-    
+
     const merchants = scanResult.Items || [];
     console.log(`Found ${merchants.length} merchants with OAuth tokens`);
+
+    const stripeSecret = await getStripeSecret();
     
     const results = {
       checked: merchants.length,
@@ -46,7 +49,7 @@ export async function handler(event: any) {
           const body = new URLSearchParams({
             grant_type: 'refresh_token',
             refresh_token: merchant.refresh_token,
-            client_secret: process.env.STRIPE_SECRET!
+            client_secret: stripeSecret
           });
           
           const response = await fetch('https://connect.stripe.com/oauth/token', {

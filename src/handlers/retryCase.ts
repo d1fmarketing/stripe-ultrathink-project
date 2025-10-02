@@ -2,10 +2,9 @@ import { ok, bad, createErrorResponse } from "../shared/responses.js";
 import { getCase } from "../shared/db.js";
 import { requireAuth, verifyMerchantOwnership } from "../shared/auth.js";
 import { StartExecutionCommand, SFNClient } from "@aws-sdk/client-sfn";
-import Stripe from 'stripe';
+import { getStripeClient } from '../shared/stripeClient';
 
 const sfn = new SFNClient({});
-const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion: '2025-07-30.basil' });
 
 export async function handler(event: any) {
   // REQUIRE AUTHENTICATION
@@ -58,6 +57,7 @@ export async function handler(event: any) {
       stripeOptions = { stripeAccount: merchantId };
     }
     
+    const stripe = await getStripeClient();
     const dispute = await stripe.disputes.retrieve(disputeId, stripeOptions);
     
     // Check if evidence deadline has passed

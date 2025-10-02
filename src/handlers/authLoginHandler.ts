@@ -1,8 +1,8 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
+import { getOptionalSecretValue } from '../shared/secretsManager';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'stripedshield-demo-secret-2025';
 const JWT_EXPIRY = '7d'; // 7 days validity
 
 interface LoginRequest {
@@ -43,6 +43,8 @@ const DEMO_USERS = [
 
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   const startTime = Date.now();
+
+  const jwtSecret = (await getOptionalSecretValue('JWT_SECRET')) || 'stripedshield-demo-secret-2025';
   
   // CORS headers
   const headers = {
@@ -108,7 +110,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
           name: demoUser.name,
           iat: Math.floor(Date.now() / 1000)
         },
-        JWT_SECRET,
+        jwtSecret,
         {
           expiresIn: JWT_EXPIRY
         }
@@ -158,7 +160,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
           name: demoUser.name,
           iat: Math.floor(Date.now() / 1000)
         },
-        JWT_SECRET,
+        jwtSecret,
         {
           expiresIn: JWT_EXPIRY
         }

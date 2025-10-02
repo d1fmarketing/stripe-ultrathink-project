@@ -2,21 +2,7 @@ import Stripe from 'stripe';
 import { z } from 'zod';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, GetCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
-
-// Initialize Stripe client lazily
-let stripe: Stripe | null = null;
-function getStripeClient(): Stripe {
-  if (!stripe) {
-    const key = process.env.STRIPE_SECRET || process.env.STRIPE_SECRET_KEY || '';
-    if (!key || key.includes('placeholder')) {
-      throw new Error('Valid Stripe secret key required. Set STRIPE_SECRET environment variable.');
-    }
-    stripe = new Stripe(key, { 
-      apiVersion: '2024-06-20' as Stripe.LatestApiVersion 
-    });
-  }
-  return stripe;
-}
+import { getStripeClient } from '../shared/stripeClient';
 
 // Initialize DynamoDB client
 const dynamoClient = new DynamoDBClient({ region: process.env.AWS_REGION || 'us-east-1' });
@@ -107,7 +93,8 @@ export async function buildBundle(params: {
   
   try {
     // Fetch dispute with expanded charge
-    const dispute = await getStripeClient().disputes.retrieve(disputeId, {
+    const stripe = await getStripeClient();
+    const dispute = await stripe.disputes.retrieve(disputeId, {
       expand: ['charge', 'charge.customer', 'charge.balance_transaction']
     });
     
@@ -177,7 +164,8 @@ async function extractCustomerInfo(charge: Stripe.Charge): Promise<EvidenceBundl
     
     // If customer ID exists, fetch full customer object
     if (charge.customer && typeof charge.customer === 'string') {
-      const customer = await getStripeClient().customers.retrieve(charge.customer);
+      const stripe = await getStripeClient();
+      const customer = await stripe.customers.retrieve(charge.customer);
       if (!customer.deleted) {
         customerData = customer;
       }
@@ -223,8 +211,9 @@ async function findCE3Candidates(
   lookbackDays: number
 ): Promise<EvidenceBundle['ceCandidates']> {
   const candidates: EvidenceBundle['ceCandidates'] = [];
-  
+
   try {
+    const stripe = await getStripeClient();
     // Calculate lookback timestamp
     const lookbackTimestamp = charge.created - (lookbackDays * 86400);
     const minTimestamp = charge.created - (365 * 86400); // Max 365 days
@@ -232,7 +221,7 @@ async function findCE3Candidates(
     
     // Search by customer ID if available
     if (customer?.id) {
-      const charges = await getStripeClient().charges.list({
+      const charges = await stripe.charges.list({
         customer: customer.id,
         limit: maxTransactions * 2, // Fetch extra to filter
         created: {
@@ -261,7 +250,7 @@ async function findCE3Candidates(
     
     // Search by email if no customer ID
     if (candidates.length === 0 && customer?.email) {
-      const charges = await getStripeClient().charges.search({
+      const charges = await stripe.charges.search({
         query: `metadata["email"]:"${customer.email}" OR billing_details.email:"${customer.email}"`,
         limit: maxTransactions
       });

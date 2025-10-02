@@ -1,7 +1,7 @@
-import Stripe from 'stripe';
 import { ok, bad } from "../shared/responses.js";
 import { requireAuth } from "../shared/auth.js";
 import { getMerchantByAccount, putMerchant } from "../shared/db.js";
+import { getStripeSecret } from '../shared/stripeClient';
 
 /**
  * Refresh Stripe OAuth access token using refresh token
@@ -27,10 +27,11 @@ export async function handler(event: any) {
     }
     
     // Refresh the token
+    const stripeSecret = await getStripeSecret();
     const body = new URLSearchParams({
       grant_type: 'refresh_token',
       refresh_token: merchant.refresh_token,
-      client_secret: process.env.STRIPE_SECRET!
+      client_secret: stripeSecret
     });
     
     const response = await fetch('https://connect.stripe.com/oauth/token', {

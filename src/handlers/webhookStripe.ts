@@ -4,18 +4,19 @@ import { upsertCase } from "../shared/db.js";
 import { getMerchantWinRate } from "../shared/db-helpers.js";
 import { handleSubscriptionEvent } from "./subscriptionManager.js";
 import { WebhookIdempotencyService } from "../shared/webhookIdempotency.js";
-import { getMerchantWebhookSecret, validateWebhookSignature } from "../shared/webhookSecrets.js";
-import { 
-  analyzeDispute, 
+import { getMerchantWebhookSecret, getGlobalWebhookSecret } from "../shared/webhookSecrets.js";
+import {
+  analyzeDispute,
   quickAssessRisk,
   isAIEnabled,
-  type DisputeAnalysis 
+  type DisputeAnalysis
 } from '../ai';
 import { CloudWatch, StandardUnit } from '@aws-sdk/client-cloudwatch';
 import { ddb } from "../shared/ddb.js";
 import { PutCommand, GetCommand } from "@aws-sdk/lib-dynamodb";
 import { FeatureExtractor } from '../ml-predictor/featureExtractor';
 import { FeedbackLoop } from '../ml/feedbackLoop';
+import { getStripeClient, getStripeSecret } from '../shared/stripeClient';
 
 // ML Enhancement Imports (Safe - with fallbacks)
 let patternCache: any = null;
@@ -50,7 +51,6 @@ if (process.env.ENABLE_MODEL_UPDATER === 'true') {
   }
 }
 
-const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion: '2025-07-30.basil' });
 const sfn = new SFNClient({});
 const cloudwatch = new CloudWatch({});
 const WEBHOOK_EVENTS_TABLE = process.env.CASES_TABLE!; // Reuse cases table for webhook events
@@ -112,17 +112,20 @@ export async function handler(event:any){
   const sig = event.headers['stripe-signature'] || event.headers['Stripe-Signature'];
   const rawBody = event.body;
   const account = (event.headers['stripe-account'] || event.headers['Stripe-Account']) as string | undefined;
-  
-  // Get the webhook secret from environment variable
+  const stripe = await getStripeClient();
+
+  // Retrieve the webhook secret from Secrets Manager
   // For production, use different secrets for account vs platform webhooks
-  const webhookSecret = account 
-    ? process.env.STRIPE_CONNECT_WEBHOOK_SECRET || process.env.STRIPE_WEBHOOK_SECRET || 'whsec_test'
-    : process.env.STRIPE_WEBHOOK_SECRET || 'whsec_test';
-  
-  if (!webhookSecret || webhookSecret === 'whsec_test') {
-    console.warn('Using test webhook secret - configure STRIPE_WEBHOOK_SECRET for production');
+  let webhookSecret: string;
+  try {
+    webhookSecret = account
+      ? await getMerchantWebhookSecret(account)
+      : await getGlobalWebhookSecret();
+  } catch (error) {
+    console.error('Failed to load Stripe webhook secret', error);
+    return { statusCode: 500, body: 'webhook secret not configured' };
   }
-  
+
   let evt: Stripe.Event;
   try{
     evt = stripe.webhooks.constructEvent(rawBody, sig!, webhookSecret);
@@ -387,7 +390,8 @@ export async function handler(event:any){
       
       try {
         // 1. Extract all features (34+ features)
-        const featureExtractor = new FeatureExtractor(process.env.STRIPE_SECRET!);
+        const stripeSecret = await getStripeSecret();
+        const featureExtractor = new FeatureExtractor(stripeSecret);
         const features = await featureExtractor.extractAllFeatures(dispute);
         
         // 2. Get our original prediction (if exists)

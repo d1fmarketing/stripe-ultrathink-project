@@ -1,16 +1,17 @@
 import admin from 'firebase-admin';
 import { GetCommand } from "@aws-sdk/lib-dynamodb";
 import { ddb } from "./ddb.js";
+import { getOptionalSecretValue } from './secretsManager';
 
 // Initialize Firebase Admin SDK
 let firebaseApp: admin.app.App | null = null;
 
-function initFirebaseAdmin() {
+async function initFirebaseAdmin(): Promise<admin.app.App> {
   if (!firebaseApp) {
     try {
-      // Use service account from environment (loaded from SSM)
-      if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-        const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+      const serviceAccountSecret = await getOptionalSecretValue('FIREBASE_SERVICE_ACCOUNT');
+      if (serviceAccountSecret) {
+        const serviceAccount = JSON.parse(serviceAccountSecret);
         firebaseApp = admin.initializeApp({
           credential: admin.credential.cert(serviceAccount),
           projectId: serviceAccount.project_id || process.env.FIREBASE_PROJECT_ID || "stripecharge-b27a6"
@@ -51,7 +52,7 @@ export async function validateAuth(authHeader: string | undefined): Promise<Auth
   const token = authHeader.substring(7);
   
   try {
-    const app = initFirebaseAdmin();
+    const app = await initFirebaseAdmin();
     const decodedToken = await admin.auth(app).verifyIdToken(token);
     
     // Get merchant info from DynamoDB if exists
