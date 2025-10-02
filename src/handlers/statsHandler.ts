@@ -1,6 +1,6 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import { DynamoDBClient, ScanCommand, QueryCommand } from '@aws-sdk/client-dynamodb';
-import Redis from 'ioredis';
+import { DynamoDBClient, ScanCommand } from '@aws-sdk/client-dynamodb';
+import { cachingStrategy } from '../shared/cacheStrategy.js';
 
 const dynamodb = new DynamoDBClient({ region: 'us-east-1' });
 const CASES_TABLE = process.env.CASES_TABLE || 'chargeback-autopilot-stripe-prod-CasesTable-1LPIUKCN82FYI';
@@ -32,31 +32,9 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
   };
 
   try {
-    // Try Redis cache first
-    let stats: StatsResponse | null = null;
-    let redis: Redis | null = null;
-    
-    try {
-      redis = new Redis(process.env.REDIS_URL || 'redis://stripedshield-redis.mot6cw.0001.use1.cache.amazonaws.com:6379', {
-        lazyConnect: true,
-        maxRetriesPerRequest: 1,
-        connectTimeout: 2000
-      });
-      
-      await redis.connect();
-      const cachedStats = await redis.get('stats:global');
-      
-      if (cachedStats) {
-        stats = JSON.parse(cachedStats);
-        stats.dataSource = 'cache';
-        console.log('Returning cached stats');
-      }
-    } catch (error) {
-      console.log('Redis cache miss or error, querying database:', error);
-    }
-    
-    // If no cache, query DynamoDB
-    if (!stats) {
+    const cacheKey = cachingStrategy.buildKey('stats', 'global');
+
+    const cacheResult = await cachingStrategy.wrap<StatsResponse>(cacheKey, async () => {
       const scanCommand = new ScanCommand({
         TableName: CASES_TABLE,
         ProjectionExpression: 'dispute_id, #status, amount_cents, ce3_eligible, created_at, processing_time_ms',
@@ -64,7 +42,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
           '#status': 'status'
         }
       });
-      
+
       const response = await dynamodb.send(scanCommand);
       const items = response.Items || [];
       
@@ -121,7 +99,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       // Calculate average dispute amount
       const avgDisputeAmount = totalDisputes > 0 ? Math.round(totalAmount / totalDisputes) : 14000; // Default to $140
       
-      stats = {
+      const stats: StatsResponse = {
         winRate: parseFloat(winRate.toFixed(1)),
         totalDisputes,
         disputesWon,
@@ -134,26 +112,22 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
         lastUpdated: new Date().toISOString(),
         dataSource: 'database'
       };
-      
-      // Cache the stats
-      if (redis) {
-        try {
-          await redis.setex('stats:global', CACHE_TTL, JSON.stringify(stats));
-          console.log('Stats cached for 5 minutes');
-        } catch (error) {
-          console.log('Failed to cache stats:', error);
-        }
-      }
-    }
-    
-    // Close Redis connection
-    if (redis) {
-      await redis.quit();
-    }
-    
+
+      return stats;
+    }, {
+      memoryTTL: 60,
+      redisTTL: CACHE_TTL,
+      staleWhileRevalidate: true,
+      staleTTL: 120,
+      tags: ['stats']
+    });
+
+    const stats = cacheResult.value;
+    stats.dataSource = cacheResult.metadata.source === 'origin' ? 'database' : 'cache';
+
     const processingTime = Date.now() - startTime;
     console.log(`Stats endpoint processed in ${processingTime}ms`);
-    
+
     return {
       statusCode: 200,
       headers,
