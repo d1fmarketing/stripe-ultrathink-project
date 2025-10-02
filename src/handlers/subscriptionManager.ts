@@ -3,6 +3,7 @@ import { requireAuth, verifyMerchantOwnership } from "../shared/auth.js";
 import { createAuditLog, AuditAction } from "../shared/auditLog.js";
 import { putMerchant, getCase } from "../shared/db.js";
 import Stripe from 'stripe';
+import { stripeCircuitBreaker } from "../shared/circuitBreaker.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion: '2025-07-30.basil' });
 
@@ -244,9 +245,16 @@ export async function getSubscriptionStatus(event: any) {
     let stripeSubscription = null;
     if (merchant?.subscription_id) {
       try {
-        stripeSubscription = await stripe.subscriptions.retrieve(
-          merchant.subscription_id,
-          { expand: ['customer', 'default_payment_method'] }
+        stripeSubscription = await stripeCircuitBreaker(
+          'subscriptions.retrieve',
+          () => stripe.subscriptions.retrieve(
+            merchant.subscription_id,
+            { expand: ['customer', 'default_payment_method'] }
+          ),
+          {
+            failureThreshold: 4,
+            cooldownPeriod: 90_000
+          }
         );
       } catch (e) {
         console.error('Error fetching Stripe subscription:', e);
@@ -321,9 +329,16 @@ export async function cancelSubscription(event: any) {
     }
     
     // Cancel subscription at period end
-    const canceledSubscription = await stripe.subscriptions.update(
-      merchant.subscription_id,
-      { cancel_at_period_end: true }
+    const canceledSubscription = await stripeCircuitBreaker(
+      'subscriptions.update',
+      () => stripe.subscriptions.update(
+        merchant.subscription_id,
+        { cancel_at_period_end: true }
+      ),
+      {
+        failureThreshold: 4,
+        cooldownPeriod: 90_000
+      }
     );
     
     // Update merchant record

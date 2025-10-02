@@ -1,4 +1,5 @@
 import Stripe from 'stripe';
+import { stripeCircuitBreaker } from '../shared/circuitBreaker.js';
 
 export async function handler(evt:any){
   const { dispute, merchant } = evt;
@@ -19,6 +20,13 @@ export async function handler(evt:any){
     stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion:'2025-07-30.basil' });
   }
   
-  const res = await stripe.disputes.update(dispute.id, { submit: true }, stripeOptions);
+  const res = await stripeCircuitBreaker(
+    'disputes.update',
+    () => stripe.disputes.update(dispute.id, { submit: true }, stripeOptions),
+    {
+      failureThreshold: 3,
+      cooldownPeriod: 120_000
+    }
+  );
   return { submitted: true, dispute: res };
 }
