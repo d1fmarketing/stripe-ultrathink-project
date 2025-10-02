@@ -100,6 +100,11 @@ provider:
           Action:
             - cloudwatch:PutMetricData
           Resource: '*'
+        - Effect: Allow
+          Action:
+            - sqs:SendMessage
+          Resource:
+            - !GetAtt WebhookDeadLetterQueue.Arn
   environment:
     # Environment variables - PRODUCTION from SSM
     STRIPE_SECRET: ${ssm:/stripedshield/prod/STRIPE_SECRET~true}
@@ -129,6 +134,14 @@ provider:
     
     # Step Functions (now deployed!)
     SFN_ARN: !Ref DisputeProcessingStateMachine
+    WEBHOOK_DLQ_URL: !Join
+      - ''
+      - - 'https://sqs.'
+        - ${aws:region}
+        - '.amazonaws.com/'
+        - ${aws:accountId}
+        - '/'
+        - !GetAtt WebhookDeadLetterQueue.QueueName
 
 functions:
   authStripeStart:
@@ -303,6 +316,12 @@ functions:
 
 resources:
   Resources:
+    WebhookDeadLetterQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: ${self:service}-${sls:stage}-webhook-dlq
+        MessageRetentionPeriod: 1209600 # 14 days
+        VisibilityTimeout: 60
     # CloudWatch Alarms for monitoring
     HealthErrorAlarm:
       Type: AWS::CloudWatch::Alarm

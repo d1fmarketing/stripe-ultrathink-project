@@ -12,6 +12,7 @@ import {
   type DisputeAnalysis 
 } from '../ai';
 import { CloudWatch, StandardUnit } from '@aws-sdk/client-cloudwatch';
+import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
 import { ddb } from "../shared/ddb.js";
 import { PutCommand, GetCommand } from "@aws-sdk/lib-dynamodb";
 import { FeatureExtractor } from '../ml-predictor/featureExtractor';
@@ -53,6 +54,7 @@ if (process.env.ENABLE_MODEL_UPDATER === 'true') {
 const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion: '2025-07-30.basil' });
 const sfn = new SFNClient({});
 const cloudwatch = new CloudWatch({});
+const sqs = new SQSClient({});
 const WEBHOOK_EVENTS_TABLE = process.env.CASES_TABLE!; // Reuse cases table for webhook events
 
 // Helper to publish metrics
@@ -140,10 +142,21 @@ export async function handler(event:any){
   // Extract account from event if not in headers
   const eventAccount = account || (evt as any).account;
 
+  try {
+    return await processStripeWebhookEvent(evt, eventAccount);
+  } catch (processingError) {
+    console.error('Webhook processing failed:', processingError);
+    await publishMetric('webhook_failed', 1);
+    await sendToDeadLetterQueue(evt, rawBody, processingError, eventAccount);
+    return { statusCode: 500, body: 'webhook processing failed' };
+  }
+}
+
+async function processStripeWebhookEvent(evt: Stripe.Event, eventAccount?: string) {
   // Handle checkout session completed (for subscriptions)
   if(evt.type === 'checkout.session.completed'){
     const session = evt.data.object as Stripe.Checkout.Session;
-    
+
     // Link subscription to user
     if(session.client_reference_id && session.subscription){
       try {
@@ -160,41 +173,41 @@ export async function handler(event:any){
           firebase_uid: session.metadata?.firebase_uid || session.client_reference_id,
           updated_at: new Date().toISOString()
         });
-        
+
         console.log('Subscription linked to user:', session.client_reference_id);
       } catch (error) {
         console.error('Failed to link subscription:', error);
       }
     }
-    
+
     await WebhookIdempotencyService.markProcessed(evt.id, { type: evt.type });
     return { statusCode: 200, body: 'subscription processed' };
   }
-  
+
   // Handle subscription updates with complete state management
   if(evt.type.startsWith('customer.subscription.')){
     const subscription = evt.data.object as Stripe.Subscription;
-    
+
     try {
       const firebase_uid = subscription.metadata?.firebase_uid;
       const customer_email = subscription.metadata?.email;
-      
+
       if(!firebase_uid){
         console.warn('Subscription event without firebase_uid:', subscription.id);
         await WebhookIdempotencyService.markProcessed(evt.id, { type: evt.type });
         return { statusCode: 200, body: 'subscription ignored - no user link' };
       }
-      
+
       // Determine the action based on event type
       let action = 'updated';
       let userAccess = 'active';
-      
+
       switch(evt.type) {
         case 'customer.subscription.created':
           action = 'created';
           userAccess = subscription.status === 'active' || subscription.status === 'trialing' ? 'active' : 'pending';
           break;
-          
+
         case 'customer.subscription.updated':
           // Check for important status transitions
           if(subscription.status === 'canceled' || subscription.status === 'unpaid') {
@@ -205,27 +218,27 @@ export async function handler(event:any){
             userAccess = 'pending';
           }
           break;
-          
+
         case 'customer.subscription.deleted':
           action = 'deleted';
           userAccess = 'terminated';
           break;
-          
+
         case 'customer.subscription.trial_will_end':
           // Send notification 3 days before trial ends
           console.log('Trial ending soon for user:', firebase_uid);
           // TODO: Send email notification
           break;
-          
+
         case 'customer.subscription.paused':
           userAccess = 'paused';
           break;
-          
+
         case 'customer.subscription.resumed':
           userAccess = 'active';
           break;
       }
-      
+
       // Store complete subscription state
       await upsertCase('SYSTEM', {
         id: `SUB#${firebase_uid}`,
@@ -251,7 +264,7 @@ export async function handler(event:any){
         event_type: evt.type,
         updated_at: new Date().toISOString()
       });
-      
+
       // Store subscription history for audit trail
       await upsertCase('SYSTEM', {
         id: `SUBHIST#${subscription.id}#${Date.now()}`,
@@ -264,51 +277,51 @@ export async function handler(event:any){
       }, {
         type: 'subscription_history'
       });
-      
+
       console.log(`Subscription ${action} for user ${firebase_uid}: ${subscription.status} (access: ${userAccess})`);
-      
+
       // Handle payment failure notifications
       if(subscription.status === 'unpaid' || subscription.status === 'past_due') {
         console.log('Payment failed for subscription:', subscription.id);
         // TODO: Send payment failure email
         // TODO: Grace period logic
       }
-      
+
     } catch (error) {
       console.error('Failed to process subscription event:', error);
       // Still mark as processed to avoid retries
     }
-    
+
     await WebhookIdempotencyService.markProcessed(evt.id, { type: evt.type });
     return { statusCode: 200, body: `subscription ${evt.type} processed` };
   }
-  
+
   // Handle invoice payment failures
   if(evt.type === 'invoice.payment_failed'){
     const invoice = evt.data.object as Stripe.Invoice;
-    
+
     if((invoice as any).subscription && (invoice as any).billing_reason === 'subscription_cycle'){
       console.log('Subscription payment failed:', (invoice as any).subscription);
-      
+
       // Update subscription status
-      const subscription_id = typeof (invoice as any).subscription === 'string' ? 
+      const subscription_id = typeof (invoice as any).subscription === 'string' ?
         (invoice as any).subscription : (invoice as any).subscription.id;
-      
+
       // TODO: Send payment retry email
       // TODO: Update user access after grace period
     }
-    
+
     await WebhookIdempotencyService.markProcessed(evt.id, { type: evt.type });
     return { statusCode: 200, body: 'payment failure processed' };
   }
 
   if(evt.type === 'charge.dispute.created' || evt.type === 'charge.dispute.updated'){
     const dispute = evt.data.object as Stripe.Dispute;
-    
+
     // Initialize AI analysis
     let aiAnalysis: DisputeAnalysis | null = null;
     let riskLevel = 'medium';
-    
+
     // Only run AI if enabled via feature flag
     if (process.env.AI_ENABLED === 'true' && isAIEnabled()) {
       // Analyze dispute with new AI module when created
@@ -316,10 +329,10 @@ export async function handler(event:any){
         try {
           // Get charge data for analysis
           const charge = await stripe.charges.retrieve(dispute.charge as string, { stripeAccount: eventAccount });
-          
+
           // Quick risk assessment first
           riskLevel = quickAssessRisk(dispute);
-          
+
           // Full AI analysis with REAL merchant win rate
           const merchantWinRate = eventAccount ? await getMerchantWinRate(eventAccount) : 0.5;
           aiAnalysis = await analyzeDispute({
@@ -327,7 +340,7 @@ export async function handler(event:any){
             charge,
             merchantWinRate // REAL data from database
           });
-          
+
           console.log('[AI] Dispute Analysis:', {
             disputeId: dispute.id,
             weaknesses: aiAnalysis.weaknesses.length,
@@ -335,20 +348,20 @@ export async function handler(event:any){
             riskLevel: aiAnalysis.riskLevel,
             estimatedWinProbability: aiAnalysis.estimatedWinProbability
           });
-          
+
           // Publish metrics
           await publishMetric('ai_analyzed', 1);
           if (aiAnalysis.estimatedWinProbability) {
             await publishMetric('ai_win_probability', aiAnalysis.estimatedWinProbability * 100, 'Percent');
           }
-          
+
         } catch (error) {
           console.error('[AI] Analysis failed:', error);
           await publishMetric('ai_error', 1);
         }
       }
     }
-    
+
     // Store case with AI analysis
     await upsertCase(eventAccount!, dispute, {
       aiAnalysis: aiAnalysis ? {
@@ -362,7 +375,7 @@ export async function handler(event:any){
       riskLevel,
       aiEnhanced: !!aiAnalysis
     });
-    
+
     if(evt.type === 'charge.dispute.created'){
       // Include AI analysis in Step Functions input
       const sfnInput = {
@@ -371,7 +384,7 @@ export async function handler(event:any){
         aiAnalysis,
         riskLevel
       };
-      
+
       // Only start Step Functions if configured
       if (process.env.SFN_ARN) {
         await sfn.send(new StartExecutionCommand({
@@ -380,16 +393,16 @@ export async function handler(event:any){
         }));
       }
     }
-    
+
     // NEW: Automatic ML data collection for resolved disputes
     if (evt.type === 'charge.dispute.updated' && ['won', 'lost', 'warning_closed'].includes(dispute.status)) {
       console.log(`📊 ML: Dispute ${dispute.id} resolved as ${dispute.status}`);
-      
+
       try {
         // 1. Extract all features (34+ features)
         const featureExtractor = new FeatureExtractor(process.env.STRIPE_SECRET!);
         const features = await featureExtractor.extractAllFeatures(dispute);
-        
+
         // 2. Get our original prediction (if exists)
         const caseData = await ddb.send(new GetCommand({
           TableName: process.env.CASES_TABLE!,
@@ -398,9 +411,9 @@ export async function handler(event:any){
             sk: `DISPUTE#${dispute.id}`
           }
         }));
-        
+
         const originalPrediction = caseData.Item?.aiAnalysis?.estimatedWinProbability || 0.5;
-        
+
         // 3. Record outcome in FeedbackLoop (updates Redis weights)
         const feedbackLoop = FeedbackLoop.getInstance();
         await feedbackLoop.recordOutcome(
@@ -412,7 +425,7 @@ export async function handler(event:any){
           },
           dispute.evidence_details?.submission_count ? 'Auto submitted' : undefined
         );
-        
+
         // 4. Save to DynamoDB for future batch training
         await ddb.send(new PutCommand({
           TableName: 'chargeback-ml-training-data',
@@ -431,22 +444,22 @@ export async function handler(event:any){
             ttl: Math.floor(Date.now() / 1000) + (365 * 24 * 60 * 60) // 1 year TTL
           }
         }));
-        
+
         // 5. Publish metrics
         await publishMetric('MLDataCollected', 1);
         await publishMetric(`Dispute_${dispute.status}`, 1);
-        
+
         // Calculate learning metrics
-        const predictionError = dispute.status === 'won' ? 
+        const predictionError = dispute.status === 'won' ?
           (1 - originalPrediction) : originalPrediction;
         await publishMetric('MLPredictionError', predictionError * 100, 'Percent');
-        
+
         console.log(`✅ ML: Training data collected for ${dispute.id}`);
         console.log(`   - Features extracted: ${Object.keys(features).length}`);
         console.log(`   - Original prediction: ${(originalPrediction * 100).toFixed(1)}%`);
         console.log(`   - Actual outcome: ${dispute.status}`);
         console.log(`   - Prediction error: ${(predictionError * 100).toFixed(1)}%`);
-        
+
         // 6. Update pattern cache with outcome (Safe - with fallback)
         if (patternCache && process.env.ENABLE_PATTERN_CACHE === 'true') {
           try {
@@ -458,7 +471,7 @@ export async function handler(event:any){
               customerHistory: charge?.customer ? 'returning' : 'new',
               shipping: charge?.shipping ? 'tracked' : 'none'
             };
-            
+
             // Update pattern with actual outcome
             const won = dispute.status === 'won';
             await patternCache.update(patternKey, won);
@@ -468,7 +481,7 @@ export async function handler(event:any){
             console.log('Failed to update pattern cache:', error);
           }
         }
-        
+
         // 7. Update score cache with validated outcome (Safe - with fallback)
         if (scoreCache && process.env.ENABLE_SCORE_CACHE === 'true') {
           try {
@@ -480,7 +493,7 @@ export async function handler(event:any){
             console.log('Failed to update score cache:', error);
           }
         }
-        
+
         // 8. Trigger model update if threshold reached (Safe - with fallback)
         if (modelUpdater && process.env.ENABLE_MODEL_UPDATER === 'true') {
           try {
@@ -494,7 +507,7 @@ export async function handler(event:any){
             console.log('Failed to check model update threshold:', error);
           }
         }
-        
+
       } catch (error) {
         console.error('❌ ML: Failed to collect training data:', error);
         await publishMetric('MLDataCollectionError', 1);
@@ -504,4 +517,47 @@ export async function handler(event:any){
 
   await markEventProcessed(evt.id, evt.type);
   return { statusCode:200, body:'ok' };
+}
+
+async function sendToDeadLetterQueue(
+  event: Stripe.Event,
+  rawBody: string,
+  error: unknown,
+  account?: string
+) {
+  const queueUrl = process.env.WEBHOOK_DLQ_URL;
+
+  if (!queueUrl) {
+    console.error('WEBHOOK_DLQ_URL is not configured; unable to enqueue failed webhook');
+    return;
+  }
+
+  const errorDetails = error instanceof Error
+    ? { name: error.name, message: error.message, stack: error.stack }
+    : { message: String(error) };
+
+  const body = typeof rawBody === 'string' ? rawBody : JSON.stringify(rawBody);
+
+  try {
+    await sqs.send(new SendMessageCommand({
+      QueueUrl: queueUrl,
+      MessageBody: JSON.stringify({
+        eventId: event.id,
+        eventType: event.type,
+        account: account || null,
+        receivedAt: new Date().toISOString(),
+        payload: body,
+        error: errorDetails
+      }),
+      MessageAttributes: {
+        EventType: {
+          DataType: 'String',
+          StringValue: event.type
+        }
+      }
+    }));
+    console.log(`Enqueued webhook ${event.id} to DLQ`);
+  } catch (queueError) {
+    console.error('Failed to enqueue webhook to DLQ:', queueError);
+  }
 }
