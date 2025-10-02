@@ -1,11 +1,12 @@
 import Redis from 'ioredis';
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import { withRequestResponseValidation } from "../shared/httpValidation.js";
 
 /**
  * Debug endpoint to test Redis connectivity
  * Helps diagnose Redis connection issues
  */
-export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+export const handler = withRequestResponseValidation(async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   try {
     const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
     
@@ -69,4 +70,4 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       }, null, 2)
     };
   }
-};
+});

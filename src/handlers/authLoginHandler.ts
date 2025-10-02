@@ -1,6 +1,7 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import jwt from 'jsonwebtoken';
-import crypto from 'crypto';
+import { z } from 'zod';
+import { withRequestResponseValidation } from "../shared/httpValidation.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || 'stripedshield-demo-secret-2025';
 const JWT_EXPIRY = '7d'; // 7 days validity
@@ -41,9 +42,26 @@ const DEMO_USERS = [
   }
 ];
 
-export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
-  const startTime = Date.now();
-  
+const loginRequestSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1).max(128).optional()
+});
+
+const loginResponseSchema = z.object({
+  success: z.boolean(),
+  token: z.string().optional(),
+  user: z.object({
+    email: z.string().email(),
+    merchantId: z.string(),
+    role: z.string(),
+    name: z.string()
+  }).optional(),
+  expiresIn: z.string().optional(),
+  error: z.string().optional()
+}).passthrough();
+
+export const handler = withRequestResponseValidation(
+async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   // CORS headers
   const headers = {
     'Content-Type': 'application/json',
@@ -62,12 +80,8 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
   }
 
   try {
-    // Parse request body
-    let loginRequest: LoginRequest;
-    
-    try {
-      loginRequest = JSON.parse(event.body || '{}');
-    } catch (error) {
+    const loginRequest = (event as typeof event & { validatedBody?: LoginRequest }).validatedBody;
+    if (!loginRequest) {
       return {
         statusCode: 400,
         headers,
@@ -78,27 +92,15 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       };
     }
 
-    // Validate email
-    if (!loginRequest.email) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({
-          success: false,
-          error: 'Email is required'
-        })
-      };
-    }
-
     // Normalize email
     const email = loginRequest.email.toLowerCase().trim();
-    
+
     // Check for demo users
     const demoUser = DEMO_USERS.find(u => u.email === email);
-    
+
     // For demo purposes, allow access with just email for demo@stripedshield.com
     // In production, always require password
-    if (email === 'demo@stripedshield.com') {
+    if (email === 'demo@stripedshield.com' && demoUser) {
       // Generate JWT token
       const token = jwt.sign(
         {
@@ -198,7 +200,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
 
   } catch (error) {
     console.error('Error in auth login handler:', error);
-    
+
     return {
       statusCode: 500,
       headers,
@@ -208,4 +210,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       })
     };
   }
-};
+}, {
+  bodySchema: loginRequestSchema,
+  responseSchema: loginResponseSchema
+});

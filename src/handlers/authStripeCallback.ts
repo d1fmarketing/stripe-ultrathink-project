@@ -1,12 +1,19 @@
+import { z } from 'zod';
 import { putMerchant } from "../shared/db.js";
 import Stripe from 'stripe';
-import { createAuditLog, AuditAction, auditFailure } from "../shared/auditLog.js";
+import { createAuditLog, AuditAction } from "../shared/auditLog.js";
+import { withRequestResponseValidation } from "../shared/httpValidation.js";
 
-export async function handler(event:any){
-  const qs = event.queryStringParameters || {};
+const querySchema = z.object({
+  code: z.string().min(1, 'code is required'),
+  state: z.string().optional()
+});
+
+export const handler = withRequestResponseValidation(async (event:any) => {
+  const qs = event.validatedQuery || event.queryStringParameters || {};
   const code = qs.code;
   const state = qs.state; // Should contain firebase_uid
-  
+
   if(!code) return { statusCode:400, body:'missing code' };
 
   const body = new URLSearchParams({
@@ -102,4 +109,4 @@ export async function handler(event:any){
   // Redirect to frontend connect page with success
   const frontendCallbackUrl = `https://stripedshield-founders-1755231149.netlify.app/connect.html?success=true&stripe_account_id=${merchant_id}${firebase_uid ? '&uid=' + firebase_uid : ''}`;
   return { statusCode: 302, headers: { Location: frontendCallbackUrl }, body: '' };
-}
+}, { querySchema });

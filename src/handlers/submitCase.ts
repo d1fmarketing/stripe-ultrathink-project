@@ -2,6 +2,7 @@ import { ok, bad } from "../shared/responses.js";
 import { requireAuth, verifyMerchantOwnership } from "../shared/auth.js";
 import { createAuditLog, AuditAction } from "../shared/auditLog.js";
 import Stripe from 'stripe';
+import { withRequestResponseValidation } from "../shared/httpValidation.js";
 import { 
   predictWinRate, 
   shouldSubmit,
@@ -41,7 +42,7 @@ async function publishMetric(name: string, value: number, unit: string = 'Count'
   }
 }
 
-export async function handler(event:any){
+export const handler = withRequestResponseValidation(async (event:any) => {
   // REQUIRE AUTHENTICATION
   const authResult = await requireAuth(event);
   if ('statusCode' in authResult) {
@@ -268,4 +269,4 @@ export async function handler(event:any){
     console.error('Error submitting dispute:', error);
     return bad(`Failed to submit dispute: ${error.message}`);
   }
-}
+});

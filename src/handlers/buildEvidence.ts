@@ -137,10 +137,10 @@ export async function handler(evt:any){
   try {
     // Use the advanced evidence bundler for CE3.0 and reason-specific evidence
     const evidencePackage = await bundler.assembleEvidencePackage(
-      dispute, 
+      dispute,
       merchant?.id || 'default',
       merchant?.stripeAccountId
-    );
+    ) as any;
     
     // ML Score Cache Integration (Safe - with fallback)
     let mlOptimizedEvidence: any = null;

@@ -3,11 +3,12 @@ import { getCase } from "../shared/db.js";
 import { requireAuth, verifyMerchantOwnership } from "../shared/auth.js";
 import { StartExecutionCommand, SFNClient } from "@aws-sdk/client-sfn";
 import Stripe from 'stripe';
+import { withRequestResponseValidation } from "../shared/httpValidation.js";
 
 const sfn = new SFNClient({});
 const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion: '2025-07-30.basil' });
 
-export async function handler(event: any) {
+export const handler = withRequestResponseValidation(async (event: any) => {
   // REQUIRE AUTHENTICATION
   const authResult = await requireAuth(event);
   if ('statusCode' in authResult) {
@@ -223,4 +224,4 @@ export async function handler(event: any) {
       details: error.message
     });
   }
-}
+});

@@ -1,17 +1,18 @@
 import { DynamoDBClient, GetItemCommand } from "@aws-sdk/client-dynamodb";
 import { getRedisClient, isRedisReady } from "../cache/redisConnection";
+import { withRequestResponseValidation } from "../shared/httpValidation.js";
 
 const dynamo = new DynamoDBClient({});
 
 const withTimeout = <T>(p: Promise<T>, ms = 350) =>
   Promise.race([
-    p, 
+    p,
     new Promise<never>((_, rej) => setTimeout(() => rej(new Error("timeout")), ms))
   ]);
 
-export const handler = async (_evt: any, ctx: any) => {
-  if (ctx && typeof ctx === 'object') {
-    ctx.callbackWaitsForEmptyEventLoop = false;
+export const handler = withRequestResponseValidation(async (_evt: any, context: any) => {
+  if (context && typeof context === 'object') {
+    context.callbackWaitsForEmptyEventLoop = false;
   }
 
   const checks: any = { redis: {}, dynamo: {} };
@@ -67,4 +68,4 @@ export const handler = async (_evt: any, ctx: any) => {
       ts: new Date().toISOString() 
     })
   };
-};
+});

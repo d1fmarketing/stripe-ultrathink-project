@@ -1,10 +1,18 @@
 import Stripe from 'stripe';
+import { z } from 'zod';
 import { ok, bad } from "../shared/responses.js";
 import { requireAuth } from "../shared/auth.js";
+import { withRequestResponseValidation } from "../shared/httpValidation.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion: '2025-07-30.basil' });
 
-export async function handler(event: any) {
+const checkoutRequestSchema = z.object({
+  email: z.string().email().optional(),
+  price_id: z.string().min(1).optional()
+});
+
+export const handler = withRequestResponseValidation<z.infer<typeof checkoutRequestSchema>>(
+async (event: any) => {
   // Get auth context if user is logged in (optional for checkout)
   let authContext = null;
   try {
@@ -15,22 +23,22 @@ export async function handler(event: any) {
   } catch (e) {
     // User not logged in, that's okay for checkout
   }
-  
-  const body = JSON.parse(event.body || '{}');
+
+  const body = (event as typeof event & { validatedBody?: z.infer<typeof checkoutRequestSchema> }).validatedBody || {};
   const email = body.email || authContext?.email;
   const priceId = body.price_id || process.env.STRIPE_PRICE_ID || 'price_1QWtQxDOwkStzJVXK8PqXJ0z'; // Default founder price
-  
+
   if (!email) {
     return bad('Email is required');
   }
-  
+
   try {
     // Create or retrieve customer
     const customers = await stripe.customers.list({
       email: email,
       limit: 1
     });
-    
+
     let customer;
     if (customers.data.length > 0) {
       customer = customers.data[0];
@@ -43,7 +51,7 @@ export async function handler(event: any) {
         }
       });
     }
-    
+
     // Create checkout session
     const session = await stripe.checkout.sessions.create({
       customer: customer.id,
@@ -68,14 +76,16 @@ export async function handler(event: any) {
         email: email
       }
     });
-    
-    return ok({ 
+
+    return ok({
       checkout_url: session.url,
       session_id: session.id
     });
-    
+
   } catch (error: any) {
     console.error('Checkout session error:', error);
     return bad(error.message);
   }
-}
+}, {
+  bodySchema: checkoutRequestSchema
+});
