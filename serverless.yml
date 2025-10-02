@@ -67,6 +67,7 @@ provider:
             - { Fn::Join: [ '/', [ { Fn::GetAtt: [ CasesTable, Arn ] }, 'index/*' ] ] }
             - { Fn::GetAtt: [ SubmissionsTable, Arn ] }
             - { Fn::GetAtt: [ EvidenceTable, Arn ] }
+            - { Fn::GetAtt: [ MLTrainingTable, Arn ] }
         - Effect: Allow
           Action:
             - states:StartExecution
@@ -114,6 +115,7 @@ provider:
     MERCHANTS_TABLE: !Ref MerchantsTable
     SUBMISSIONS_TABLE: !Ref SubmissionsTable
     EVIDENCE_TABLE: !Ref EvidenceTable
+    ML_TRAINING_TABLE: !Ref MLTrainingTable
     # Redis - Use SSM if available, otherwise default endpoint
     REDIS_URL: ${ssm:/stripedshield/prod/REDIS_URL, 'redis://stripedshield-redis.mot6cw.0001.use1.cache.amazonaws.com:6379'}
     # Firebase Configuration
@@ -688,6 +690,18 @@ resources:
         BillingMode: PAY_PER_REQUEST
         AttributeDefinitions: [ { AttributeName: pk, AttributeType: S }, { AttributeName: sk, AttributeType: S } ]
         KeySchema: [ { AttributeName: pk, KeyType: HASH }, { AttributeName: sk, KeyType: RANGE } ]
+
+    MLTrainingTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - { AttributeName: trainingId, AttributeType: S }
+        KeySchema:
+          - { AttributeName: trainingId, KeyType: HASH }
+        TimeToLiveSpecification:
+          AttributeName: expiresAt
+          Enabled: true
 
     # WAF Web ACL for rate limiting and DDoS protection
     ApiWebACL:
