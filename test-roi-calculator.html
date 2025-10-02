@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ROI Calculator Test</title>
+</head>
+<body>
+    <h1>Testing ROI Calculator Math</h1>
+    
+    <div id="results"></div>
+    
+    <script>
+        // Test ROI calculation logic
+        function testROI(disputes, avgAmount) {
+            const totalAtRisk = disputes * avgAmount;
+            
+            // Without StripedShield (40% win rate)
+            const withoutRecovered = totalAtRisk * 0.40;
+            const withoutLost = totalAtRisk * 0.60;
+            
+            // With StripedShield (68% win rate)
+            const withRecovered = totalAtRisk * 0.68;
+            const withLost = totalAtRisk * 0.32;
+            
+            // Monthly savings
+            const monthlySavings = withRecovered - withoutRecovered;
+            
+            // ROI calculation
+            const monthlyFee = 599;
+            const roi = Math.round(((monthlySavings - monthlyFee) / monthlyFee) * 100);
+            
+            return {
+                totalAtRisk,
+                withoutRecovered,
+                withoutLost,
+                withRecovered,
+                withLost,
+                monthlySavings,
+                roi
+            };
+        }
+        
+        // Run test cases
+        const testCases = [
+            { disputes: 100, avgAmount: 140 },  // Default case
+            { disputes: 50, avgAmount: 200 },   // Lower volume, higher value
+            { disputes: 200, avgAmount: 100 },  // Higher volume, lower value
+            { disputes: 300, avgAmount: 140 },  // High volume case
+        ];
+        
+        let html = '<h2>ROI Calculation Test Results</h2>';
+        let allTestsPassed = true;
+        
+        testCases.forEach((test, i) => {
+            const result = testROI(test.disputes, test.avgAmount);
+            
+            // Verify math
+            const expectedSavings = (test.disputes * test.avgAmount) * 0.28; // 68% - 40% = 28% improvement
+            const mathCorrect = Math.abs(result.monthlySavings - expectedSavings) < 1;
+            
+            if (!mathCorrect) allTestsPassed = false;
+            
+            html += `
+                <div style="border: 1px solid #ccc; padding: 10px; margin: 10px 0;">
+                    <h3>Test Case ${i + 1}: ${test.disputes} disputes × $${test.avgAmount}</h3>
+                    <p>Total at Risk: $${result.totalAtRisk.toLocaleString()}</p>
+                    <p>Without StripedShield: Recover $${result.withoutRecovered.toLocaleString()} (40%)</p>
+                    <p>With StripedShield: Recover $${result.withRecovered.toLocaleString()} (68%)</p>
+                    <p>Monthly Savings: $${result.monthlySavings.toLocaleString()}</p>
+                    <p>ROI: ${result.roi}%</p>
+                    <p>Math Check: ${mathCorrect ? '✓ PASS' : '✗ FAIL'}</p>
+                </div>
+            `;
+        });
+        
+        html += `<h2>Overall Result: ${allTestsPassed ? '✓ ALL TESTS PASSED' : '✗ SOME TESTS FAILED'}</h2>`;
+        
+        document.getElementById('results').innerHTML = html;
+        
+        // Log to console for automated testing
+        console.log('ROI Calculator Test:', allTestsPassed ? 'PASSED' : 'FAILED');
+    </script>
+</body>
+</html>

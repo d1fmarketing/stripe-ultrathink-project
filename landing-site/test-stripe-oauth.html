@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Stripe OAuth - ULTRATHINK</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center">
+    
+    <div class="bg-white rounded-lg shadow-lg p-8 max-w-2xl w-full">
+        <h1 class="text-2xl font-bold mb-6">🔐 Stripe OAuth Test</h1>
+        
+        <div class="bg-green-50 p-4 rounded-lg mb-6">
+            <h3 class="font-bold text-green-800 mb-2">✅ Configuration Updated:</h3>
+            <ul class="text-sm text-green-700 space-y-1">
+                <li><strong>Client ID:</strong> ca_SsL2dWaMFTzSsFMMGzraPtJY2OiPPRID</li>
+                <li><strong>Redirect URI:</strong> https://ket0g0lurh.execute-api.us-east-1.amazonaws.com/auth/stripe/callback</li>
+                <li><strong>Account ID:</strong> acct_1RocXXDOwkStzJVX</li>
+            </ul>
+        </div>
+        
+        <div class="space-y-4">
+            <div class="border-2 border-purple-500 rounded-lg p-6">
+                <h3 class="font-semibold text-lg mb-3">Method 1: Via Our API</h3>
+                <p class="text-sm text-gray-600 mb-4">Uses our backend OAuth endpoint (may still show old config until deploy completes)</p>
+                <button onclick="testViaAPI()" 
+                        class="w-full bg-purple-600 text-white py-3 rounded-lg font-semibold hover:bg-purple-700 transition">
+                    Test via API Endpoint
+                </button>
+                <div id="apiResult" class="mt-4 text-xs text-gray-600"></div>
+            </div>
+            
+            <div class="border-2 border-blue-500 rounded-lg p-6">
+                <h3 class="font-semibold text-lg mb-3">Method 2: Direct Link</h3>
+                <p class="text-sm text-gray-600 mb-4">Goes directly to Stripe with correct parameters</p>
+                <button onclick="testDirect()" 
+                        class="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition">
+                    Connect Stripe Account (Direct)
+                </button>
+            </div>
+        </div>
+        
+        <div class="mt-8 bg-yellow-50 p-4 rounded-lg">
+            <h3 class="font-bold text-yellow-800 mb-2">⚠️ Important:</h3>
+            <ul class="text-sm text-yellow-700 space-y-1">
+                <li>• The API endpoint may still return old config until AWS deploy completes</li>
+                <li>• Use Method 2 (Direct Link) to test immediately</li>
+                <li>• After connecting, you'll be redirected to our callback handler</li>
+            </ul>
+        </div>
+        
+        <div class="mt-6 text-center">
+            <a href="/onboarding.html" class="text-blue-600 hover:text-blue-700 underline text-sm">
+                Go to Production Onboarding Page
+            </a>
+        </div>
+    </div>
+    
+    <script>
+        // Test via API
+        async function testViaAPI() {
+            const resultDiv = document.getElementById('apiResult');
+            resultDiv.innerHTML = 'Fetching OAuth URL from API...';
+            
+            try {
+                const response = await fetch('https://ket0g0lurh.execute-api.us-east-1.amazonaws.com/auth/stripe/start');
+                const data = await response.json();
+                
+                if (data.url) {
+                    resultDiv.innerHTML = `
+                        <strong>API Response:</strong><br>
+                        <code class="text-xs break-all">${data.url}</code><br>
+                        <button onclick="window.location.href='${data.url}'" class="mt-2 text-blue-600 underline">
+                            → Proceed with OAuth
+                        </button>
+                    `;
+                    
+                    // Check if it's using the new client_id
+                    if (data.url.includes('ca_SsL2dWaMFTzSsFMMGzraPtJY2OiPPRID')) {
+                        resultDiv.innerHTML += '<br><span class="text-green-600 font-bold">✅ Using NEW client_id!</span>';
+                    } else if (data.url.includes('ca_placeholder')) {
+                        resultDiv.innerHTML += '<br><span class="text-red-600 font-bold">❌ Still using placeholder (deploy pending)</span>';
+                    }
+                } else {
+                    resultDiv.innerHTML = '<span class="text-red-600">Error: No URL returned</span>';
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<span class="text-red-600">Error: ${error.message}</span>`;
+            }
+        }
+        
+        // Test direct link
+        function testDirect() {
+            // Generate random state for security
+            const state = Math.random().toString(36).substring(2, 15);
+            
+            // Store state in sessionStorage for verification
+            sessionStorage.setItem('oauth_state', state);
+            
+            // Build OAuth URL with correct parameters
+            const params = new URLSearchParams({
+                response_type: 'code',
+                client_id: 'ca_SsL2dWaMFTzSsFMMGzraPtJY2OiPPRID',
+                scope: 'read_write',
+                redirect_uri: 'https://ket0g0lurh.execute-api.us-east-1.amazonaws.com/auth/stripe/callback',
+                state: state
+            });
+            
+            const oauthUrl = `https://connect.stripe.com/oauth/authorize?${params.toString()}`;
+            
+            console.log('Direct OAuth URL:', oauthUrl);
+            window.location.href = oauthUrl;
+        }
+    </script>
+</body>
+</html>

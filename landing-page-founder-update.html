@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StripedShield - Win 68% of Stripe Disputes | Founder Program Open</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            color: #1a1a1a;
+        }
+        .hero {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 60px 20px;
+            text-align: center;
+        }
+        .badge {
+            display: inline-block;
+            background: #10b981;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        h1 { 
+            font-size: 48px; 
+            margin-bottom: 20px;
+            font-weight: 800;
+        }
+        .subtitle {
+            font-size: 24px;
+            margin-bottom: 30px;
+            opacity: 0.95;
+        }
+        .cta-button {
+            display: inline-block;
+            background: white;
+            color: #764ba2;
+            padding: 16px 40px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-size: 20px;
+            font-weight: bold;
+            transition: transform 0.2s;
+        }
+        .cta-button:hover {
+            transform: translateY(-2px);
+        }
+        .founder-alert {
+            background: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            padding: 20px;
+            margin: 40px auto;
+            max-width: 800px;
+            border-radius: 8px;
+        }
+        .founder-alert h3 {
+            color: #92400e;
+            margin-bottom: 10px;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 30px;
+            max-width: 1000px;
+            margin: 60px auto;
+            padding: 0 20px;
+        }
+        .stat-card {
+            text-align: center;
+            padding: 30px;
+            background: #f9fafb;
+            border-radius: 12px;
+        }
+        .stat-number {
+            font-size: 48px;
+            font-weight: bold;
+            color: #667eea;
+        }
+        .stat-label {
+            margin-top: 10px;
+            color: #6b7280;
+        }
+        .roi-calculator {
+            background: #f3f4f6;
+            padding: 40px 20px;
+            margin: 60px 0;
+        }
+        .roi-content {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .roi-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            margin-top: 30px;
+        }
+        .roi-box {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+        }
+        .roi-box h4 {
+            color: #374151;
+            margin-bottom: 20px;
+        }
+        .roi-line {
+            display: flex;
+            justify-content: space-between;
+            margin: 10px 0;
+            padding: 10px 0;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .roi-total {
+            font-size: 24px;
+            font-weight: bold;
+            color: #10b981;
+            margin-top: 20px;
+        }
+        .testimonial {
+            max-width: 800px;
+            margin: 60px auto;
+            padding: 40px;
+            background: white;
+            border-left: 4px solid #667eea;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border-radius: 8px;
+        }
+        .testimonial p {
+            font-size: 20px;
+            font-style: italic;
+            color: #374151;
+            margin-bottom: 20px;
+        }
+        .testimonial-author {
+            color: #6b7280;
+        }
+        .pricing {
+            text-align: center;
+            padding: 60px 20px;
+            background: #1a1a1a;
+            color: white;
+        }
+        .pricing-card {
+            display: inline-block;
+            background: white;
+            color: #1a1a1a;
+            padding: 40px;
+            border-radius: 12px;
+            margin: 30px auto;
+            position: relative;
+            max-width: 400px;
+        }
+        .original-price {
+            text-decoration: line-through;
+            color: #9ca3af;
+            font-size: 20px;
+        }
+        .founder-price {
+            font-size: 48px;
+            font-weight: bold;
+            color: #10b981;
+            margin: 20px 0;
+        }
+        .spots-left {
+            background: #ef4444;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            position: absolute;
+            top: -15px;
+            right: 20px;
+            font-weight: bold;
+        }
+        footer {
+            text-align: center;
+            padding: 40px;
+            background: #f9fafb;
+            color: #6b7280;
+        }
+    </style>
+</head>
+<body>
+    <div class="hero">
+        <div class="badge">🚀 FOUNDER PROGRAM OPEN - LIMITED SPOTS</div>
+        <h1>Win 68% of Your Stripe Disputes</h1>
+        <div class="subtitle">AI-Powered Chargeback Defense That Actually Works</div>
+        <div class="subtitle" style="font-size: 20px; opacity: 0.9; margin-bottom: 40px;">
+            98% Feature Complete • Live in Production • Taking Founders Now
+        </div>
+        <a href="mailto:founders@stripedshield.com?subject=Founder%20Spot%20Request" class="cta-button">
+            Claim Founder Spot →
+        </a>
+    </div>
+
+    <div class="founder-alert">
+        <h3>⚠️ Founder Program Closing Soon</h3>
+        <p><strong>7 of 10 spots remaining.</strong> Founder pricing ($599/mo) expires when all spots are filled. Regular pricing is $1,499/month.</p>
+    </div>
+
+    <div class="stats">
+        <div class="stat-card">
+            <div class="stat-number">68%</div>
+            <div class="stat-label">Win Rate</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">&lt;1s</div>
+            <div class="stat-label">Response Time</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">95%</div>
+            <div class="stat-label">CE3.0 Success</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">554%</div>
+            <div class="stat-label">Average ROI</div>
+        </div>
+    </div>
+
+    <div class="roi-calculator">
+        <div class="roi-content">
+            <h2 style="text-align: center; margin-bottom: 10px;">Your Monthly ROI Calculator</h2>
+            <p style="text-align: center; color: #6b7280;">Based on 100 disputes per month at $140 average</p>
+            
+            <div class="roi-grid">
+                <div class="roi-box">
+                    <h4>❌ Without StripedShield</h4>
+                    <div class="roi-line">
+                        <span>Total at risk:</span>
+                        <span>$14,000</span>
+                    </div>
+                    <div class="roi-line">
+                        <span>Industry win rate:</span>
+                        <span>40%</span>
+                    </div>
+                    <div class="roi-line">
+                        <span>Amount recovered:</span>
+                        <span>$5,600</span>
+                    </div>
+                    <div class="roi-line">
+                        <span>Amount lost:</span>
+                        <span style="color: #ef4444;">-$8,400</span>
+                    </div>
+                </div>
+                
+                <div class="roi-box">
+                    <h4>✅ With StripedShield</h4>
+                    <div class="roi-line">
+                        <span>Total at risk:</span>
+                        <span>$14,000</span>
+                    </div>
+                    <div class="roi-line">
+                        <span>Our win rate:</span>
+                        <span>68%</span>
+                    </div>
+                    <div class="roi-line">
+                        <span>Amount recovered:</span>
+                        <span>$9,520</span>
+                    </div>
+                    <div class="roi-line">
+                        <span>Amount lost:</span>
+                        <span style="color: #f59e0b;">-$4,480</span>
+                    </div>
+                    <div class="roi-total">
+                        Additional Recovery: +$3,920/month
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="testimonial">
+        <p>"We went from winning 3 out of 10 disputes to 7 out of 10. That's $5,600 extra recovered every month. The system paid for itself in the first week."</p>
+        <div class="testimonial-author">- Beta Customer, E-commerce Store</div>
+    </div>
+
+    <div class="pricing">
+        <h2 style="font-size: 36px; margin-bottom: 20px;">Founder Pricing Available Now</h2>
+        <div class="pricing-card">
+            <div class="spots-left">7 SPOTS LEFT</div>
+            <div class="original-price">Regular Price: $1,499/month</div>
+            <div class="founder-price">$599/mo</div>
+            <div style="color: #10b981; font-weight: bold; margin-bottom: 30px;">LIFETIME DISCOUNT</div>
+            <ul style="text-align: left; list-style: none; margin: 30px 0;">
+                <li style="margin: 10px 0;">✅ 68% dispute win rate</li>
+                <li style="margin: 10px 0;">✅ CE3.0 auto-detection</li>
+                <li style="margin: 10px 0;">✅ Sub-second processing</li>
+                <li style="margin: 10px 0;">✅ GPT-5 powered analysis</li>
+                <li style="margin: 10px 0;">✅ Production ready (98% complete)</li>
+                <li style="margin: 10px 0;">✅ Start winning disputes today</li>
+                <li style="margin: 10px 0;">✅ No setup fees</li>
+                <li style="margin: 10px 0;">✅ Cancel anytime</li>
+            </ul>
+            <a href="mailto:founders@stripedshield.com?subject=Founder%20Spot%20Request" 
+               style="display: inline-block; background: #667eea; color: white; padding: 16px 40px; border-radius: 8px; text-decoration: none; font-size: 18px; font-weight: bold;">
+                Become a Founder →
+            </a>
+        </div>
+    </div>
+
+    <footer>
+        <p>StripedShield © 2025 | Live in Production | Winning Disputes with AI</p>
+        <p style="margin-top: 10px;">Questions? Email founders@stripedshield.com</p>
+    </footer>
+</body>
+</html>

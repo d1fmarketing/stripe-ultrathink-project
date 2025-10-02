@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connecting Stripe - StripedShield</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Firebase SDK v9 (Modular) -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { 
+            getAuth, 
+            onAuthStateChanged
+        } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+        import {
+            getFirestore,
+            doc,
+            setDoc,
+            updateDoc
+        } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+        
+        // Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyBGemDqwlwE4v0tZ7RXttJsW9l_0YrtBNA",
+            authDomain: "stripecharge-b27a6.firebaseapp.com",
+            projectId: "stripecharge-b27a6",
+            storageBucket: "stripecharge-b27a6.firebasestorage.app",
+            messagingSenderId: "573857361404",
+            appId: "1:573857361404:web:50dab6d2b28c441cae5679",
+            measurementId: "G-27XBNSG2Z9"
+        };
+        
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        
+        // Process OAuth callback
+        async function processCallback() {
+            const urlParams = new URLSearchParams(window.location.search);
+            
+            // Check for stripe_account_id FIRST (from backend redirect)
+            const stripeAccountId = urlParams.get('stripe_account_id');
+            const connected = urlParams.get('connected');
+            
+            // Also check for error or code (shouldn't happen normally)
+            const code = urlParams.get('code');
+            const state = urlParams.get('state');
+            const error = urlParams.get('error');
+            const errorDescription = urlParams.get('error_description');
+            
+            const statusDiv = document.getElementById('status');
+            const messageDiv = document.getElementById('message');
+            
+            if (error) {
+                statusDiv.textContent = 'Connection Failed';
+                messageDiv.textContent = errorDescription || 'Failed to connect Stripe account';
+                messageDiv.className = 'text-red-600';
+                
+                setTimeout(() => {
+                    window.location.href = '/onboarding.html';
+                }, 3000);
+                return;
+            }
+            
+            // Handle successful redirect from backend with stripe_account_id
+            if (stripeAccountId && connected === '1') {
+                try {
+                    statusDiv.textContent = 'Connection Successful!';
+                    messageDiv.textContent = 'Saving your Stripe connection...';
+                    messageDiv.className = 'text-green-600';
+                    
+                    // Get user info from session storage
+                    const userId = sessionStorage.getItem('connectingUserId');
+                    const userEmail = sessionStorage.getItem('connectingUserEmail');
+                    
+                    if (userId) {
+                        // Save to Firebase
+                        await saveStripeConnection(userId, userEmail, stripeAccountId);
+                        
+                        // Clear session storage
+                        sessionStorage.removeItem('connectingUserId');
+                        sessionStorage.removeItem('connectingUserEmail');
+                        
+                        messageDiv.textContent = 'Your Stripe account has been connected successfully!';
+                        
+                        // Redirect to dashboard
+                        setTimeout(() => {
+                            window.location.href = '/dashboard-protected.html';
+                        }, 2000);
+                    } else {
+                        // No user session, need to authenticate
+                        statusDiv.textContent = 'Authentication Required';
+                        messageDiv.textContent = 'Please log in to complete the connection';
+                        messageDiv.className = 'text-yellow-600';
+                        
+                        // Store the stripe_account_id for after login
+                        sessionStorage.setItem('pendingStripeAccountId', stripeAccountId);
+                        
+                        setTimeout(() => {
+                            window.location.href = '/auth.html';
+                        }, 3000);
+                    }
+                    return;
+                } catch (error) {
+                    console.error('Error saving Stripe connection:', error);
+                    statusDiv.textContent = 'Connection Error';
+                    messageDiv.textContent = 'Failed to save connection. Please try again.';
+                    messageDiv.className = 'text-red-600';
+                    
+                    setTimeout(() => {
+                        window.location.href = '/onboarding.html';
+                    }, 3000);
+                    return;
+                }
+            }
+            
+            // Fallback: if we somehow got a code directly (shouldn't happen)
+            if (code) {
+                statusDiv.textContent = 'Unexpected Flow';
+                messageDiv.textContent = 'Redirecting to complete connection...';
+                messageDiv.className = 'text-yellow-600';
+                
+                // Redirect to backend to exchange code
+                window.location.href = `https://ket0g0lurh.execute-api.us-east-1.amazonaws.com/auth/stripe/callback?code=${code}&state=${state || ''}`;
+                return;
+            }
+            
+            // No valid parameters received
+            statusDiv.textContent = 'Invalid Request';
+            messageDiv.textContent = 'No connection data received';
+            messageDiv.className = 'text-red-600';
+            
+            setTimeout(() => {
+                window.location.href = '/onboarding.html';
+            }, 3000);
+        }
+        
+        // Save Stripe connection to Firebase
+        async function saveStripeConnection(userId, userEmail, stripeAccountId) {
+            try {
+                const userRef = doc(db, 'users', userId);
+                
+                // Update or create user document
+                await setDoc(userRef, {
+                    email: userEmail,
+                    stripe_account_id: stripeAccountId,
+                    stripe_connected_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                }, { merge: true });
+                
+                console.log('Stripe connection saved to Firebase');
+                
+            } catch (error) {
+                console.error('Failed to save to Firebase:', error);
+                // Don't throw - connection might still work via backend
+            }
+        }
+        
+        // Check auth state and process callback
+        onAuthStateChanged(auth, (user) => {
+            // Process callback regardless of auth state
+            // We'll use session storage as backup
+            processCallback();
+        });
+    </script>
+</head>
+<body class="bg-gray-50 min-h-screen flex items-center justify-center">
+    
+    <div class="bg-white rounded-lg shadow-lg p-8 max-w-md w-full text-center">
+        <div class="mb-6">
+            <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
+        </div>
+        
+        <h2 id="status" class="text-2xl font-bold text-gray-900 mb-4">
+            Connecting Your Stripe Account...
+        </h2>
+        
+        <p id="message" class="text-gray-600">
+            Please wait while we complete the connection
+        </p>
+        
+        <div class="mt-8">
+            <div class="text-xs text-gray-400">
+                This may take a few seconds
+            </div>
+        </div>
+    </div>
+    
+</body>
+</html>

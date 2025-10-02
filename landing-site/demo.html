@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StripedShield Dashboard - Redirecting...</title>
+    <meta name="robots" content="noindex, nofollow">
+    <script>
+        // Redirect to protected dashboard
+        window.location.replace('/dashboard-protected.html');
+    </script>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Moment.js for dates -->
+    <script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/moment.min.js"></script>
+    
+    <style>
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        .notification-slide {
+            animation: slideIn 0.5s ease-out;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .pulse-dot {
+            animation: pulse 2s infinite;
+        }
+        .gradient-border {
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            padding: 2px;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body x-data="dashboard()" x-init="init()" class="bg-gray-100">
+    
+    <!-- Header -->
+    <header class="bg-white shadow-sm border-b">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center space-x-4">
+                    <h1 class="text-2xl font-bold bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">
+                        StripedShield
+                    </h1>
+                    <span class="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium flex items-center">
+                        <span class="w-2 h-2 bg-green-500 rounded-full mr-2 pulse-dot"></span>
+                        Live
+                    </span>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <div class="text-sm text-gray-600">
+                        Demo Account: <span class="font-semibold">demo@stripedshield.com</span>
+                    </div>
+                    <button @click="showSettings = true" class="text-gray-500 hover:text-gray-700">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+    
+    <!-- Main Dashboard -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        
+        <!-- Key Metrics -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="text-sm font-medium text-gray-600">Win Rate</h3>
+                    <span class="text-green-600 text-xs font-semibold bg-green-100 px-2 py-1 rounded">+28%</span>
+                </div>
+                <div class="text-3xl font-bold text-gray-900" x-text="metrics.winRate + '%'"></div>
+                <p class="text-xs text-gray-500 mt-2">vs 40% industry avg</p>
+                <div class="mt-4 h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div class="h-full bg-gradient-to-r from-purple-500 to-indigo-500" :style="`width: ${metrics.winRate}%`"></div>
+                </div>
+            </div>
+            
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="text-sm font-medium text-gray-600">Monthly Recovery</h3>
+                    <span class="text-green-600 text-xs font-semibold bg-green-100 px-2 py-1 rounded">+$3,920</span>
+                </div>
+                <div class="text-3xl font-bold text-gray-900">$<span x-text="metrics.monthlyRecovery.toLocaleString()"></span></div>
+                <p class="text-xs text-gray-500 mt-2">This month</p>
+                <div class="mt-4">
+                    <canvas id="miniChart1" width="100" height="30"></canvas>
+                </div>
+            </div>
+            
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="text-sm font-medium text-gray-600">Active Disputes</h3>
+                    <span class="text-yellow-600 text-xs font-semibold bg-yellow-100 px-2 py-1 rounded">
+                        <span x-text="metrics.activeDisputes"></span> pending
+                    </span>
+                </div>
+                <div class="text-3xl font-bold text-gray-900" x-text="metrics.totalDisputes"></div>
+                <p class="text-xs text-gray-500 mt-2">Total this month</p>
+                <div class="mt-4 flex space-x-1">
+                    <div class="flex-1 h-8 bg-green-500 rounded" :style="`flex: ${metrics.disputesWon}`"></div>
+                    <div class="flex-1 h-8 bg-yellow-500 rounded" :style="`flex: ${metrics.activeDisputes}`"></div>
+                    <div class="flex-1 h-8 bg-red-500 rounded" :style="`flex: ${metrics.disputesLost}`"></div>
+                </div>
+            </div>
+            
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="text-sm font-medium text-gray-600">CE3.0 Detection</h3>
+                    <span class="text-purple-600 text-xs font-semibold bg-purple-100 px-2 py-1 rounded">95% win</span>
+                </div>
+                <div class="text-3xl font-bold text-gray-900" x-text="metrics.ce30Count"></div>
+                <p class="text-xs text-gray-500 mt-2">Auto-wins this month</p>
+                <div class="mt-4 flex items-center text-xs text-gray-600">
+                    <svg class="w-4 h-4 text-green-500 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                    </svg>
+                    VISA Certified
+                </div>
+            </div>
+        </div>
+        
+        <!-- Live Activity Feed & Chart -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+            <!-- Chart -->
+            <div class="lg:col-span-2 bg-white rounded-lg shadow p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-semibold text-gray-900">Win Rate Trend</h2>
+                    <select x-model="chartPeriod" @change="updateChart()" class="text-sm border-gray-300 rounded-md">
+                        <option value="7">Last 7 days</option>
+                        <option value="30">Last 30 days</option>
+                        <option value="90">Last 90 days</option>
+                    </select>
+                </div>
+                <canvas id="mainChart" width="400" height="200"></canvas>
+            </div>
+            
+            <!-- Live Feed -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-semibold text-gray-900">Live Activity</h2>
+                    <span class="flex items-center text-xs text-gray-500">
+                        <span class="w-2 h-2 bg-green-500 rounded-full mr-1 pulse-dot"></span>
+                        Real-time
+                    </span>
+                </div>
+                <div class="space-y-3 max-h-96 overflow-y-auto">
+                    <template x-for="activity in activities" :key="activity.id">
+                        <div class="flex items-start space-x-3 p-3 hover:bg-gray-50 rounded-lg transition">
+                            <div class="flex-shrink-0">
+                                <div :class="{
+                                    'bg-green-100 text-green-600': activity.type === 'won',
+                                    'bg-yellow-100 text-yellow-600': activity.type === 'pending',
+                                    'bg-blue-100 text-blue-600': activity.type === 'ce30',
+                                    'bg-purple-100 text-purple-600': activity.type === 'submitted'
+                                }" class="w-8 h-8 rounded-full flex items-center justify-center">
+                                    <span x-text="activity.icon" class="text-lg"></span>
+                                </div>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <p class="text-sm font-medium text-gray-900" x-text="activity.title"></p>
+                                <p class="text-xs text-gray-500" x-text="activity.description"></p>
+                                <p class="text-xs text-gray-400 mt-1" x-text="activity.time"></p>
+                            </div>
+                            <div class="flex-shrink-0">
+                                <span class="text-sm font-semibold" :class="{
+                                    'text-green-600': activity.amount > 0,
+                                    'text-gray-600': activity.amount === 0
+                                }" x-text="activity.amount > 0 ? '+$' + activity.amount : ''"></span>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Disputes Table -->
+        <div class="bg-white rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-lg font-semibold text-gray-900">Recent Disputes</h2>
+                    <div class="flex space-x-2">
+                        <button @click="filterDisputes('all')" :class="disputeFilter === 'all' ? 'bg-purple-100 text-purple-700' : 'text-gray-600'" class="px-3 py-1 rounded-md text-sm font-medium">
+                            All (<span x-text="disputes.length"></span>)
+                        </button>
+                        <button @click="filterDisputes('pending')" :class="disputeFilter === 'pending' ? 'bg-purple-100 text-purple-700' : 'text-gray-600'" class="px-3 py-1 rounded-md text-sm font-medium">
+                            Pending (<span x-text="disputes.filter(d => d.status === 'pending').length"></span>)
+                        </button>
+                        <button @click="filterDisputes('won')" :class="disputeFilter === 'won' ? 'bg-purple-100 text-purple-700' : 'text-gray-600'" class="px-3 py-1 rounded-md text-sm font-medium">
+                            Won (<span x-text="disputes.filter(d => d.status === 'won').length"></span>)
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reason</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">AI Score</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">CE3.0</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Due</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        <template x-for="dispute in filteredDisputes" :key="dispute.id">
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                    <span x-text="dispute.id" class="font-mono"></span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600" x-text="dispute.customer"></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
+                                    $<span x-text="dispute.amount"></span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                    <span class="capitalize" x-text="dispute.reason"></span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span :class="{
+                                        'bg-yellow-100 text-yellow-800': dispute.status === 'pending',
+                                        'bg-blue-100 text-blue-800': dispute.status === 'reviewing',
+                                        'bg-green-100 text-green-800': dispute.status === 'won',
+                                        'bg-red-100 text-red-800': dispute.status === 'lost'
+                                    }" class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full">
+                                        <span x-text="dispute.status"></span>
+                                    </span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                    <div class="flex items-center">
+                                        <div class="text-sm font-medium" :class="{
+                                            'text-green-600': dispute.aiScore >= 70,
+                                            'text-yellow-600': dispute.aiScore >= 50 && dispute.aiScore < 70,
+                                            'text-red-600': dispute.aiScore < 50
+                                        }">
+                                            <span x-text="dispute.aiScore"></span>%
+                                        </div>
+                                        <div class="ml-2 w-16 bg-gray-200 rounded-full h-2">
+                                            <div class="h-2 rounded-full" :class="{
+                                                'bg-green-500': dispute.aiScore >= 70,
+                                                'bg-yellow-500': dispute.aiScore >= 50 && dispute.aiScore < 70,
+                                                'bg-red-500': dispute.aiScore < 50
+                                            }" :style="`width: ${dispute.aiScore}%`"></div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                    <span x-show="dispute.ce30" class="text-green-600 font-semibold">✓ Eligible</span>
+                                    <span x-show="!dispute.ce30" class="text-gray-400">-</span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600" x-text="dispute.dueDate"></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                    <button x-show="dispute.status === 'pending'" @click="submitDispute(dispute)" class="text-purple-600 hover:text-purple-900">
+                                        Submit
+                                    </button>
+                                    <button x-show="dispute.status !== 'pending'" @click="viewDispute(dispute)" class="text-gray-600 hover:text-gray-900">
+                                        View
+                                    </button>
+                                </td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+    
+    <!-- Notifications -->
+    <div class="fixed bottom-4 right-4 space-y-2 z-50" x-show="notifications.length > 0">
+        <template x-for="notification in notifications" :key="notification.id">
+            <div x-show="notification.show" 
+                 x-transition:enter="transition ease-out duration-300"
+                 x-transition:enter-start="opacity-0 transform translate-x-full"
+                 x-transition:enter-end="opacity-1 transform translate-x-0"
+                 x-transition:leave="transition ease-in duration-300"
+                 x-transition:leave-start="opacity-1"
+                 x-transition:leave-end="opacity-0"
+                 class="bg-white rounded-lg shadow-lg p-4 max-w-sm notification-slide">
+                <div class="flex items-start">
+                    <div class="flex-shrink-0">
+                        <div :class="{
+                            'bg-green-100 text-green-600': notification.type === 'success',
+                            'bg-blue-100 text-blue-600': notification.type === 'info',
+                            'bg-yellow-100 text-yellow-600': notification.type === 'warning'
+                        }" class="w-10 h-10 rounded-full flex items-center justify-center">
+                            <span x-text="notification.icon" class="text-xl"></span>
+                        </div>
+                    </div>
+                    <div class="ml-3 flex-1">
+                        <p class="text-sm font-medium text-gray-900" x-text="notification.title"></p>
+                        <p class="mt-1 text-sm text-gray-500" x-text="notification.message"></p>
+                    </div>
+                    <button @click="removeNotification(notification)" class="ml-4 text-gray-400 hover:text-gray-500">
+                        <span class="text-xl">×</span>
+                    </button>
+                </div>
+            </div>
+        </template>
+    </div>
+    
+    <script>
+        function dashboard() {
+            return {
+                metrics: {
+                    winRate: 68,
+                    monthlyRecovery: 9520,
+                    totalDisputes: 147,
+                    activeDisputes: 12,
+                    disputesWon: 100,
+                    disputesLost: 35,
+                    ce30Count: 31
+                },
+                activities: [],
+                disputes: [],
+                filteredDisputes: [],
+                disputeFilter: 'all',
+                notifications: [],
+                chartPeriod: 30,
+                mainChart: null,
+                miniCharts: [],
+                showSettings: false,
+                
+                init() {
+                    this.generateActivities();
+                    this.generateDisputes();
+                    this.filteredDisputes = this.disputes;
+                    this.initCharts();
+                    this.startAutoRefresh();
+                    this.showWelcomeNotification();
+                },
+                
+                generateActivities() {
+                    const types = [
+                        { type: 'won', icon: '✓', title: 'Dispute Won', amount: true },
+                        { type: 'ce30', icon: '🎯', title: 'CE3.0 Auto-Win', amount: true },
+                        { type: 'submitted', icon: '📤', title: 'Evidence Submitted', amount: false },
+                        { type: 'pending', icon: '⏳', title: 'New Dispute', amount: true }
+                    ];
+                    
+                    const customers = ['john.doe@email.com', 'sarah.smith@company.com', 'mike.wilson@shop.com', 'emma.brown@store.net'];
+                    const amounts = [150, 280, 450, 620, 890, 1200];
+                    
+                    for (let i = 0; i < 10; i++) {
+                        const type = types[Math.floor(Math.random() * types.length)];
+                        const customer = customers[Math.floor(Math.random() * customers.length)];
+                        const amount = type.amount ? amounts[Math.floor(Math.random() * amounts.length)] : 0;
+                        const minutesAgo = Math.floor(Math.random() * 60);
+                        
+                        this.activities.push({
+                            id: `act_${i}`,
+                            type: type.type,
+                            icon: type.icon,
+                            title: type.title,
+                            description: `${customer} - dp_${Math.random().toString(36).substring(2, 8)}`,
+                            amount: amount,
+                            time: minutesAgo === 0 ? 'Just now' : `${minutesAgo}m ago`
+                        });
+                    }
+                },
+                
+                generateDisputes() {
+                    const reasons = ['fraudulent', 'subscription_canceled', 'unrecognized', 'duplicate', 'product_unacceptable'];
+                    const statuses = ['pending', 'reviewing', 'won', 'lost'];
+                    const customers = ['customer1@example.com', 'customer2@shop.com', 'customer3@store.net', 'customer4@company.com'];
+                    
+                    for (let i = 0; i < 20; i++) {
+                        const status = i < 5 ? 'pending' : statuses[Math.floor(Math.random() * statuses.length)];
+                        const reason = reasons[Math.floor(Math.random() * reasons.length)];
+                        const aiScore = Math.floor(Math.random() * 40) + 50;
+                        const ce30 = reason === 'fraudulent' && Math.random() > 0.5;
+                        
+                        this.disputes.push({
+                            id: `dp_${Math.random().toString(36).substring(2, 8)}`,
+                            customer: customers[Math.floor(Math.random() * customers.length)],
+                            amount: Math.floor(Math.random() * 1000) + 100,
+                            reason: reason,
+                            status: status,
+                            aiScore: ce30 ? 95 : aiScore,
+                            ce30: ce30,
+                            dueDate: moment().add(Math.floor(Math.random() * 7), 'days').format('MMM D')
+                        });
+                    }
+                },
+                
+                filterDisputes(filter) {
+                    this.disputeFilter = filter;
+                    if (filter === 'all') {
+                        this.filteredDisputes = this.disputes;
+                    } else {
+                        this.filteredDisputes = this.disputes.filter(d => d.status === filter);
+                    }
+                },
+                
+                initCharts() {
+                    // Main chart
+                    const ctx = document.getElementById('mainChart').getContext('2d');
+                    const days = [];
+                    const winRates = [];
+                    
+                    for (let i = 29; i >= 0; i--) {
+                        days.push(moment().subtract(i, 'days').format('MMM D'));
+                        winRates.push(Math.floor(Math.random() * 10) + 63);
+                    }
+                    
+                    this.mainChart = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: days,
+                            datasets: [{
+                                label: 'Win Rate %',
+                                data: winRates,
+                                borderColor: 'rgb(147, 51, 234)',
+                                backgroundColor: 'rgba(147, 51, 234, 0.1)',
+                                tension: 0.3,
+                                fill: true
+                            }, {
+                                label: 'Industry Average',
+                                data: Array(30).fill(40),
+                                borderColor: 'rgb(229, 231, 235)',
+                                borderDash: [5, 5],
+                                pointRadius: 0
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    display: true,
+                                    position: 'bottom'
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: false,
+                                    min: 0,
+                                    max: 100,
+                                    ticks: {
+                                        callback: function(value) {
+                                            return value + '%';
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                    
+                    // Mini chart
+                    const miniCtx = document.getElementById('miniChart1').getContext('2d');
+                    new Chart(miniCtx, {
+                        type: 'line',
+                        data: {
+                            labels: ['', '', '', '', '', '', ''],
+                            datasets: [{
+                                data: [8200, 8500, 8900, 9100, 9300, 9400, 9520],
+                                borderColor: 'rgb(34, 197, 94)',
+                                borderWidth: 2,
+                                pointRadius: 0,
+                                tension: 0.3
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: false }
+                            },
+                            scales: {
+                                x: { display: false },
+                                y: { display: false }
+                            }
+                        }
+                    });
+                },
+                
+                submitDispute(dispute) {
+                    dispute.status = 'reviewing';
+                    this.addNotification('success', '✓', 'Evidence Submitted', `AI-generated evidence submitted for ${dispute.id}`);
+                    this.filterDisputes(this.disputeFilter);
+                },
+                
+                viewDispute(dispute) {
+                    alert(`Viewing dispute ${dispute.id}`);
+                },
+                
+                addNotification(type, icon, title, message) {
+                    const notification = {
+                        id: Date.now(),
+                        type,
+                        icon,
+                        title,
+                        message,
+                        show: true
+                    };
+                    
+                    this.notifications.push(notification);
+                    
+                    setTimeout(() => {
+                        this.removeNotification(notification);
+                    }, 5000);
+                },
+                
+                removeNotification(notification) {
+                    notification.show = false;
+                    setTimeout(() => {
+                        this.notifications = this.notifications.filter(n => n.id !== notification.id);
+                    }, 300);
+                },
+                
+                showWelcomeNotification() {
+                    setTimeout(() => {
+                        this.addNotification('info', '👋', 'Welcome to Demo', 'This is a live demo of StripedShield dashboard');
+                    }, 1000);
+                },
+                
+                startAutoRefresh() {
+                    // Simulate winning a dispute every 30 seconds
+                    setInterval(() => {
+                        const pendingDisputes = this.disputes.filter(d => d.status === 'pending');
+                        if (pendingDisputes.length > 0) {
+                            const dispute = pendingDisputes[0];
+                            dispute.status = 'won';
+                            this.metrics.disputesWon++;
+                            this.metrics.activeDisputes--;
+                            this.metrics.monthlyRecovery += dispute.amount;
+                            
+                            this.addNotification('success', '🎉', 'Dispute Won!', `Successfully won dispute ${dispute.id} - $${dispute.amount} recovered`);
+                            
+                            // Add to activity feed
+                            this.activities.unshift({
+                                id: `act_${Date.now()}`,
+                                type: 'won',
+                                icon: '✓',
+                                title: 'Dispute Won',
+                                description: `${dispute.customer} - ${dispute.id}`,
+                                amount: dispute.amount,
+                                time: 'Just now'
+                            });
+                            
+                            // Keep only 10 activities
+                            if (this.activities.length > 10) {
+                                this.activities.pop();
+                            }
+                            
+                            this.filterDisputes(this.disputeFilter);
+                        }
+                    }, 30000);
+                    
+                    // Update times in activity feed
+                    setInterval(() => {
+                        this.activities.forEach(activity => {
+                            if (activity.time !== 'Just now') {
+                                const minutes = parseInt(activity.time);
+                                if (minutes < 59) {
+                                    activity.time = `${minutes + 1}m ago`;
+                                } else {
+                                    activity.time = '1h ago';
+                                }
+                            }
+                        });
+                    }, 60000);
+                    
+                    // Simulate new disputes
+                    setInterval(() => {
+                        const reasons = ['fraudulent', 'unrecognized', 'duplicate'];
+                        const reason = reasons[Math.floor(Math.random() * reasons.length)];
+                        const amount = Math.floor(Math.random() * 500) + 100;
+                        const ce30 = reason === 'fraudulent' && Math.random() > 0.5;
+                        
+                        const newDispute = {
+                            id: `dp_${Math.random().toString(36).substring(2, 8)}`,
+                            customer: `new.customer${Math.floor(Math.random() * 100)}@email.com`,
+                            amount: amount,
+                            reason: reason,
+                            status: 'pending',
+                            aiScore: ce30 ? 95 : Math.floor(Math.random() * 30) + 60,
+                            ce30: ce30,
+                            dueDate: moment().add(7, 'days').format('MMM D')
+                        };
+                        
+                        this.disputes.unshift(newDispute);
+                        this.metrics.totalDisputes++;
+                        this.metrics.activeDisputes++;
+                        
+                        this.addNotification('warning', '⚠️', 'New Dispute', `New ${reason} dispute for $${amount}`);
+                        
+                        this.filterDisputes(this.disputeFilter);
+                    }, 45000);
+                }
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,28 @@
+[build]
+  command = "next build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "20"
+  NEXT_TELEMETRY_DISABLED = "1"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+# Use different base URLs automatically on previews vs prod
+[context.production.environment]
+  NEXTAUTH_URL = "https://stripedshield-app.netlify.app"
+  STRIPE_REDIRECT_URL = "https://stripedshield-app.netlify.app/api/stripe/connect/callback"
+
+[context.deploy-preview.environment]
+  NEXTAUTH_URL = "$DEPLOY_PRIME_URL"
+  STRIPE_REDIRECT_URL = "$DEPLOY_PRIME_URL/api/stripe/connect/callback"
+
+# Optional: basic security headers
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "SAMEORIGIN"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Content-Security-Policy = "default-src 'self' https:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: https:; font-src 'self' data: https:; connect-src 'self' https:; frame-src 'self' https://connect.stripe.com https://checkout.stripe.com"

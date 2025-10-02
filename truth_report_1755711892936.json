@@ -1,0 +1,412 @@
+{
+  "timestamp": "2025-08-20T17:44:19.399Z",
+  "lambdaTests": {
+    "health": {
+      "working": true,
+      "response": {
+        "statusCode": 200,
+        "headers": {
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache"
+        },
+        "body": "{\"ok\":true,\"degraded\":true,\"checks\":{\"redis\":{\"ok\":false,\"error\":\"Redis is already connecting/connected\"},\"dynamo\":{\"ok\":false,\"error\":\"1 validation error detected: Value null at 'tableName' failed to satisfy constraint: Member must not be null\"}},\"service\":\"StripedShield\",\"version\":\"2.0.1\",\"ts\":\"2025-08-20T17:44:20.280Z\"}"
+      },
+      "statusCode": 200
+    },
+    "debugRedis": {
+      "working": true,
+      "response": {
+        "statusCode": 503,
+        "headers": {
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache"
+        },
+        "body": "{\n  \"status\": \"error\",\n  \"error\": \"Connection is closed.\",\n  \"redisUrl\": \"not configured\",\n  \"timestamp\": \"2025-08-20T17:44:21.254Z\"\n}"
+      },
+      "statusCode": 503
+    },
+    "metrics": {
+      "working": true,
+      "response": {
+        "statusCode": 200,
+        "headers": {
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache"
+        },
+        "body": "{\"timestamp\":\"2025-08-20T17:44:22.227Z\",\"degraded\":true,\"error\":\"Unable to fetch complete metrics\",\"message\":\"Connection is closed.\",\"partial\":{\"winRate\":{\"current\":68,\"definition\":\"Default value - Redis unavailable\"}}}"
+      },
+      "statusCode": 200
+    },
+    "stats": {
+      "working": true,
+      "response": {
+        "statusCode": 200,
+        "headers": {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Headers": "Content-Type,Authorization",
+          "Access-Control-Allow-Methods": "GET,OPTIONS"
+        },
+        "body": "{\"success\":true,\"data\":{\"winRate\":68,\"totalDisputes\":7,\"disputesWon\":0,\"disputesLost\":0,\"disputesPending\":7,\"averageResponseTime\":\"562ms\",\"ce30DetectionRate\":0,\"totalAmountRecovered\":0,\"averageDisputeAmount\":0,\"lastUpdated\":\"2025-08-20T17:40:40.449Z\",\"dataSource\":\"cache\"},\"processingTime\":\"26ms\"}"
+      },
+      "statusCode": 200
+    },
+    "authLogin": {
+      "working": true,
+      "response": {
+        "statusCode": 400,
+        "headers": {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Headers": "Content-Type,Authorization",
+          "Access-Control-Allow-Methods": "POST,OPTIONS"
+        },
+        "body": "{\"success\":false,\"error\":\"Email is required\"}"
+      },
+      "statusCode": 400
+    },
+    "authStripeStart": {
+      "working": true,
+      "response": {
+        "statusCode": 400,
+        "headers": {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Headers": "Authorization,Content-Type,X-Requested-With,X-Request-ID",
+          "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
+          "Access-Control-Allow-Credentials": "true",
+          "X-Content-Type-Options": "nosniff",
+          "X-Frame-Options": "DENY",
+          "X-XSS-Protection": "1; mode=block",
+          "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+          "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://www.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://api.stripe.com https://*.firebaseio.com",
+          "Referrer-Policy": "strict-origin-when-cross-origin",
+          "Permissions-Policy": "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=*, usb=()"
+        },
+        "body": "{\"error\":\"Stripe not configured\"}"
+      },
+      "statusCode": 400
+    },
+    "authStripeCallback": {
+      "working": true,
+      "response": {
+        "statusCode": 400,
+        "body": "missing code"
+      },
+      "statusCode": 400
+    },
+    "autoRefreshTokens": {
+      "working": true,
+      "response": {
+        "statusCode": 500,
+        "body": "{\"error\":\"1 validation error detected: Value null at 'tableName' failed to satisfy constraint: Member must not be null\"}"
+      },
+      "statusCode": 500
+    },
+    "buildEvidence": {
+      "working": true,
+      "response": {
+        "evidence": {
+          "product_description": "Goods/Services as described on receipt",
+          "customer_name": "",
+          "customer_email_address": "",
+          "shipping_address": "",
+          "customer_purchase_ip": "",
+          "receipt": "",
+          "uncategorized_text": "Charge undefined on 1970-01-01T00:00:00.000Z for 0 ."
+        }
+      }
+    },
+    "collectCase": {
+      "working": true,
+      "response": {
+        "statusCode": 401,
+        "body": "{\"error\":\"Unauthorized\"}"
+      },
+      "statusCode": 401
+    },
+    "createCheckoutSession": {
+      "working": true,
+      "response": {
+        "statusCode": 400,
+        "headers": {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Headers": "Authorization,Content-Type,X-Requested-With,X-Request-ID",
+          "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
+          "Access-Control-Allow-Credentials": "true",
+          "X-Content-Type-Options": "nosniff",
+          "X-Frame-Options": "DENY",
+          "X-XSS-Protection": "1; mode=block",
+          "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+          "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://www.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://api.stripe.com https://*.firebaseio.com",
+          "Referrer-Policy": "strict-origin-when-cross-origin",
+          "Permissions-Policy": "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=*, usb=()"
+        },
+        "body": "{\"error\":\"Email is required\"}"
+      },
+      "statusCode": 400
+    },
+    "disputes": {
+      "working": true,
+      "response": {
+        "statusCode": 401,
+        "body": "{\"error\":\"Unauthorized\"}"
+      },
+      "statusCode": 401
+    },
+    "getCase": {
+      "working": true,
+      "response": {
+        "statusCode": 400,
+        "headers": {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Headers": "Authorization,Content-Type,X-Requested-With,X-Request-ID",
+          "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
+          "Access-Control-Allow-Credentials": "true",
+          "X-Content-Type-Options": "nosniff",
+          "X-Frame-Options": "DENY",
+          "X-XSS-Protection": "1; mode=block",
+          "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+          "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://www.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://api.stripe.com https://*.firebaseio.com",
+          "Referrer-Policy": "strict-origin-when-cross-origin",
+          "Permissions-Policy": "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=*, usb=()"
+        },
+        "body": "{\"error\":\"Validation failed\",\"errors\":{\"id\":\"Field is required\"}}"
+      },
+      "statusCode": 400
+    },
+    "getCharge": {
+      "working": true,
+      "response": {
+        "statusCode": 400,
+        "body": "{\"error\":\"Missing dispute or charge information\"}"
+      },
+      "statusCode": 400
+    },
+    "getDispute": {
+      "working": true,
+      "response": {
+        "errorType": "TypeError",
+        "errorMessage": "Cannot read properties of undefined (reading 'stripe_account_id')",
+        "trace": [
+          "TypeError: Cannot read properties of undefined (reading 'stripe_account_id')",
+          "    at Runtime.dh [as handler] (/var/task/getDispute.js:14:22996)",
+          "    at Runtime.handleOnceNonStreaming (file:///var/runtime/index.mjs:1206:29)"
+        ]
+      }
+    },
+    "getPaymentIntent": {
+      "working": true,
+      "response": {
+        "errorType": "TypeError",
+        "errorMessage": "Cannot read properties of undefined (reading 'stripe_account_id')",
+        "trace": [
+          "TypeError: Cannot read properties of undefined (reading 'stripe_account_id')",
+          "    at Runtime.rh [as handler] (/var/task/getPaymentIntent.js:14:21717)",
+          "    at Runtime.handleOnceNonStreaming (file:///var/runtime/index.mjs:1206:29)"
+        ]
+      }
+    },
+    "getUserDisputes": {
+      "working": true,
+      "response": {
+        "statusCode": 401,
+        "body": "{\"error\":\"Unauthorized\"}"
+      },
+      "statusCode": 401
+    },
+    "listCases": {
+      "working": true,
+      "response": {
+        "statusCode": 401,
+        "body": "{\"error\":\"Unauthorized\"}"
+      },
+      "statusCode": 401
+    },
+    "reportWeekly": {
+      "working": true,
+      "response": {
+        "errorType": "ValidationException",
+        "errorMessage": "1 validation error detected: Value null at 'tableName' failed to satisfy constraint: Member must not be null",
+        "trace": [
+          "ValidationException: 1 validation error detected: Value null at 'tableName' failed to satisfy constraint: Member must not be null",
+          "    at throwDefaultError (/var/task/node_modules/@smithy/smithy-client/dist-cjs/index.js:388:20)",
+          "    at /var/task/node_modules/@smithy/smithy-client/dist-cjs/index.js:397:5",
+          "    at de_CommandError (/var/task/node_modules/@aws-sdk/client-dynamodb/dist-cjs/index.js:2359:14)",
+          "    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)",
+          "    at async /var/task/node_modules/@smithy/middleware-serde/dist-cjs/index.js:36:20",
+          "    at async /var/task/node_modules/@aws-sdk/lib-dynamodb/dist-cjs/index.js:173:30",
+          "    at async /var/task/node_modules/@smithy/core/dist-cjs/index.js:193:18",
+          "    at async /var/task/node_modules/@smithy/middleware-retry/dist-cjs/index.js:320:38",
+          "    at async /var/task/node_modules/@aws-sdk/middleware-logger/dist-cjs/index.js:33:22",
+          "    at async Runtime.F [as handler] (/var/task/reportWeekly.js:1:885)"
+        ]
+      }
+    },
+    "retryCase": {
+      "working": true,
+      "response": {
+        "statusCode": 401,
+        "body": "{\"error\":\"Unauthorized\"}"
+      },
+      "statusCode": 401
+    },
+    "stripeStageEvidence": {
+      "working": true,
+      "response": {
+        "errorType": "TypeError",
+        "errorMessage": "Cannot read properties of undefined (reading 'id')",
+        "trace": [
+          "TypeError: Cannot read properties of undefined (reading 'id')",
+          "    at Runtime.handler (/var/task/dist/handlers/stripeStageEvidence.js:7697:52)",
+          "    at Runtime.handleOnceNonStreaming (file:///var/runtime/index.mjs:1206:29)"
+        ]
+      }
+    },
+    "stripeSubmitEvidence": {
+      "working": true,
+      "response": {
+        "errorType": "TypeError",
+        "errorMessage": "Cannot read properties of undefined (reading 'id')",
+        "trace": [
+          "TypeError: Cannot read properties of undefined (reading 'id')",
+          "    at Runtime.handler (/var/task/dist/handlers/stripeSubmitEvidence.js:7697:52)",
+          "    at Runtime.handleOnceNonStreaming (file:///var/runtime/index.mjs:1206:29)"
+        ]
+      }
+    },
+    "submitCase": {
+      "working": true,
+      "response": {
+        "statusCode": 401,
+        "body": "{\"error\":\"Unauthorized\"}"
+      },
+      "statusCode": 401
+    },
+    "subscriptionCancel": {
+      "working": true,
+      "response": {
+        "errorType": "Runtime.HandlerNotFound",
+        "errorMessage": "dist/handlers/subscriptionManager.handler is undefined or not exported",
+        "trace": [
+          "Runtime.HandlerNotFound: dist/handlers/subscriptionManager.handler is undefined or not exported",
+          "    at UserFunction.js.module.exports.load (file:///var/runtime/index.mjs:1151:15)",
+          "    at async start (file:///var/runtime/index.mjs:1335:23)",
+          "    at async file:///var/runtime/index.mjs:1342:1"
+        ]
+      }
+    },
+    "subscriptionStatus": {
+      "working": true,
+      "response": {
+        "errorType": "Runtime.HandlerNotFound",
+        "errorMessage": "dist/handlers/subscriptionManager.handler is undefined or not exported",
+        "trace": [
+          "Runtime.HandlerNotFound: dist/handlers/subscriptionManager.handler is undefined or not exported",
+          "    at UserFunction.js.module.exports.load (file:///var/runtime/index.mjs:1151:15)",
+          "    at async start (file:///var/runtime/index.mjs:1335:23)",
+          "    at async file:///var/runtime/index.mjs:1342:1"
+        ]
+      }
+    },
+    "webhookStripe": {
+      "working": true,
+      "response": {
+        "errorType": "TypeError",
+        "errorMessage": "Cannot read properties of undefined (reading 'stripe-signature')",
+        "trace": [
+          "TypeError: Cannot read properties of undefined (reading 'stripe-signature')",
+          "    at Runtime.mP [as handler] (/var/task/webhookStripe.js:54:5605)",
+          "    at Runtime.handleOnceNonStreaming (file:///var/runtime/index.mjs:1206:29)"
+        ]
+      }
+    }
+  },
+  "apiTests": {
+    "Health Check": {
+      "url": "https://ket0g0lurh.execute-api.us-east-1.amazonaws.com/health",
+      "description": "Health Check",
+      "httpCode": 200,
+      "response": "{\"ok\":true,\"degraded\":true,\"checks\":{\"redis\":{\"ok\":false,\"error\":\"Redis is already connecting/connected\"},\"dynamo\":{\"ok\":false,\"error\":\"1 validation error detected: Value null at 'tableName' failed to satisfy constraint: Member must not be null\"}},\"service\":\"StripedShield\",\"version\":\"2.0.1\",\"ts\":\"2025-08-20T17:44:49.379Z\"}",
+      "working": true,
+      "success": true
+    },
+    "Statistics": {
+      "url": "https://ket0g0lurh.execute-api.us-east-1.amazonaws.com/stats",
+      "description": "Statistics",
+      "httpCode": 200,
+      "response": "{\"success\":true,\"data\":{\"winRate\":68,\"totalDisputes\":7,\"disputesWon\":0,\"disputesLost\":0,\"disputesPending\":7,\"averageResponseTime\":\"562ms\",\"ce30DetectionRate\":0,\"totalAmountRecovered\":0,\"averageDisputeAmount\":0,\"lastUpdated\":\"2025-08-20T17:40:40.449Z\",\"dataSource\":\"cache\"},\"processingTime\":\"19ms\"}",
+      "working": true,
+      "success": true
+    },
+    "Redis Debug": {
+      "url": "https://ket0g0lurh.execute-api.us-east-1.amazonaws.com/debug/redis",
+      "description": "Redis Debug",
+      "httpCode": 503,
+      "response": "{\n  \"status\": \"error\",\n  \"error\": \"Connection is closed.\",\n  \"redisUrl\": \"not configured\",\n  \"timestamp\": \"2025-08-20T17:44:49.578Z\"\n}",
+      "working": false,
+      "success": true
+    },
+    "Disputes List": {
+      "url": "https://ket0g0lurh.execute-api.us-east-1.amazonaws.com/disputes",
+      "description": "Disputes List",
+      "httpCode": 401,
+      "response": "{\"error\":\"Unauthorized\"}",
+      "working": false,
+      "success": true
+    },
+    "Cases List": {
+      "url": "https://ket0g0lurh.execute-api.us-east-1.amazonaws.com/cases",
+      "description": "Cases List",
+      "httpCode": 401,
+      "response": "{\"error\":\"Unauthorized\"}",
+      "working": false,
+      "success": true
+    },
+    "Performance Metrics": {
+      "url": "https://ket0g0lurh.execute-api.us-east-1.amazonaws.com/metrics/performance",
+      "description": "Performance Metrics",
+      "httpCode": 200,
+      "response": "{\"timestamp\":\"2025-08-20T17:44:49.901Z\",\"degraded\":true,\"error\":\"Unable to fetch complete metrics\",\"message\":\"Connection is closed.\",\"partial\":{\"winRate\":{\"current\":68,\"definition\":\"Default value - Redis unavailable\"}}}",
+      "working": true,
+      "success": true
+    }
+  },
+  "infrastructure": {
+    "dynamodb": {
+      "working": true,
+      "tables": "{\n    \"TableNames\": [\n        \"chargeback-autopilot-stripe-dev-CasesTable-1OZ8Z365YVE5E\",\n        \"chargeback-autopilot-stripe-dev-EvidenceTable-EYISDX3IF2QP\",\n        \"chargeback-autopilot-stripe-dev-MerchantsTable-QAX6QK4RFP2E\",\n        \"chargeback-autopilot-stripe-dev-SubmissionsTable-1UX9U8O9DMB41\",\n        \"chargeback-autopilot-stripe-prod-CasesTable-1LPIUKCN82FYI\",\n        \"chargeback-autopilot-stripe-prod-EvidenceTable-1UMDGN8ZAH7IT\",\n        \"chargeback-autopilot-stripe-prod-MerchantsTable-51TCFUV1R406\",\n        \"chargeback-autopilot-stripe-prod-SubmissionsTable-1OW6115T4W4O5\"\n    ]\n}\n"
+    },
+    "redis": {
+      "working": true,
+      "clusters": "{\n    \"CacheClusters\": [\n        {\n            \"CacheClusterId\": \"stripedshield-redis\",\n            \"ClientDownloadLandingPage\": \"https://console.aws.amazon.com/elasticache/home#client-download:\",\n            \"CacheNodeType\": \"cache.t3.micro\",\n            \"Engine\": \"redis\",\n            \"EngineVersion\": \"7.1.0\",\n            \"CacheClusterStatus\": \"available\",\n            \"NumCacheNodes\": 1,\n            \"PreferredAvailabilityZone\": \"us-east-1b\",\n            \"CacheClusterCreateTime\": \"2025-08-14T19:26:13.344000+00:00\",\n            \"PreferredMaintenanceWindow\": \"thu:06:30-thu:07:30\",\n            \"PendingModifiedValues\": {},\n            \"CacheSecurityGroups\": [],\n            \"CacheParameterGroup\": {\n                \"CacheParameterGroupName\": \"default.redis7\",\n                \"ParameterApplyStatus\": \"in-sync\",\n                \"CacheNodeIdsToReboot\": []\n            },\n            \"CacheSubnetGroupName\": \"stripedshield-cache-subnet\",\n            \"AutoMinorVersionUpgrade\": true,\n            \"SecurityGroups\": [\n                {\n                    \"SecurityGroupId\": \"sg-0dd54a0f71afd1c2c\",\n                    \"Status\": \"active\"\n                }\n            ],\n            \"SnapshotRetentionLimit\": 0,\n            \"SnapshotWindow\": \"07:30-08:30\",\n            \"AuthTokenEnabled\": false,\n            \"TransitEncryptionEnabled\": false,\n            \"AtRestEncryptionEnabled\": false,\n            \"ARN\": \"arn:aws:elasticache:us-east-1:330140023537:cluster:stripedshield-redis\",\n            \"ReplicationGroupLogDeliveryEnabled\": false,\n            \"LogDeliveryConfigurations\": [],\n            \"NetworkType\": \"ipv4\",\n            \"IpDiscovery\": \"ipv4\"\n        },\n        {\n            \"CacheClusterId\": \"stripedshield-redis-rg-001\",\n            \"ClientDownloadLandingPage\": \"https://console.aws.amazon.com/elasticache/home#client-download:\",\n            \"CacheNodeType\": \"cache.t3.micro\",\n            \"Engine\": \"redis\",\n            \"EngineVersion\": \"7.1.0\",\n            \"CacheClusterStatus\": \"available\",\n            \"NumCacheNodes\": 1,\n            \"PreferredAvailabilityZone\": \"us-east-1a\",\n            \"CacheClusterCreateTime\": \"2025-08-14T23:25:50.855000+00:00\",\n            \"PreferredMaintenanceWindow\": \"wed:09:00-wed:10:00\",\n            \"PendingModifiedValues\": {},\n            \"CacheSecurityGroups\": [],\n            \"CacheParameterGroup\": {\n                \"CacheParameterGroupName\": \"default.redis7\",\n                \"ParameterApplyStatus\": \"in-sync\",\n                \"CacheNodeIdsToReboot\": []\n            },\n            \"CacheSubnetGroupName\": \"stripedshield-redis-subnet\",\n            \"AutoMinorVersionUpgrade\": true,\n            \"SecurityGroups\": [\n                {\n                    \"SecurityGroupId\": \"sg-0dd54a0f71afd1c2c\",\n                    \"Status\": \"active\"\n                }\n            ],\n            \"ReplicationGroupId\": \"stripedshield-redis-rg\",\n            \"SnapshotRetentionLimit\": 0,\n            \"SnapshotWindow\": \"03:00-04:00\",\n            \"AuthTokenEnabled\": false,\n            \"TransitEncryptionEnabled\": false,\n            \"AtRestEncryptionEnabled\": false,\n            \"ARN\": \"arn:aws:elasticache:us-east-1:330140023537:cluster:stripedshield-redis-rg-001\",\n            \"ReplicationGroupLogDeliveryEnabled\": false,\n            \"LogDeliveryConfigurations\": [],\n            \"NetworkType\": \"ipv4\",\n            \"IpDiscovery\": \"ipv4\"\n        },\n        {\n            \"CacheClusterId\": \"stripedshield-redis-rg-002\",\n            \"ClientDownloadLandingPage\": \"https://console.aws.amazon.com/elasticache/home#client-download:\",\n            \"CacheNodeType\": \"cache.t3.micro\",\n            \"Engine\": \"redis\",\n            \"EngineVersion\": \"7.1.0\",\n            \"CacheClusterStatus\": \"available\",\n            \"NumCacheNodes\": 1,\n            \"PreferredAvailabilityZone\": \"us-east-1b\",\n            \"CacheClusterCreateTime\": \"2025-08-14T23:25:50.855000+00:00\",\n            \"PreferredMaintenanceWindow\": \"wed:09:00-wed:10:00\",\n            \"PendingModifiedValues\": {},\n            \"CacheSecurityGroups\": [],\n            \"CacheParameterGroup\": {\n                \"CacheParameterGroupName\": \"default.redis7\",\n                \"ParameterApplyStatus\": \"in-sync\",\n                \"CacheNodeIdsToReboot\": []\n            },\n            \"CacheSubnetGroupName\": \"stripedshield-redis-subnet\",\n            \"AutoMinorVersionUpgrade\": true,\n            \"SecurityGroups\": [\n                {\n                    \"SecurityGroupId\": \"sg-0dd54a0f71afd1c2c\",\n                    \"Status\": \"active\"\n                }\n            ],\n            \"ReplicationGroupId\": \"stripedshield-redis-rg\",\n            \"SnapshotRetentionLimit\": 0,\n            \"SnapshotWindow\": \"03:00-04:00\",\n            \"AuthTokenEnabled\": false,\n            \"TransitEncryptionEnabled\": false,\n            \"AtRestEncryptionEnabled\": false,\n            \"ARN\": \"arn:aws:elasticache:us-east-1:330140023537:cluster:stripedshield-redis-rg-002\",\n            \"ReplicationGroupLogDeliveryEnabled\": false,\n            \"LogDeliveryConfigurations\": [],\n            \"NetworkType\": \"ipv4\",\n            \"IpDiscovery\": \"ipv4\"\n        }\n    ]\n}\n"
+    },
+    "apigateway": {
+      "working": true,
+      "apis": "{\n    \"Items\": [\n        {\n            \"ApiEndpoint\": \"https://0mctcvl8sg.execute-api.us-east-1.amazonaws.com\",\n            \"ApiId\": \"0mctcvl8sg\",\n            \"ApiKeySelectionExpression\": \"$request.header.x-api-key\",\n            \"CorsConfiguration\": {\n                \"AllowHeaders\": [\n                    \"content-type\",\n                    \"x-amz-date\",\n                    \"authorization\",\n                    \"x-api-key\",\n                    \"x-amz-security-token\",\n                    \"x-amz-user-agent\",\n                    \"x-amzn-trace-id\"\n                ],\n                \"AllowMethods\": [\n                    \"OPTIONS\",\n                    \"GET\",\n                    \"POST\"\n                ],\n                \"AllowOrigins\": [\n                    \"*\"\n                ]\n            },\n            \"CreatedDate\": \"2025-08-14T00:31:16+00:00\",\n            \"DisableExecuteApiEndpoint\": false,\n            \"IpAddressType\": \"ipv4\",\n            \"Name\": \"dev-chargeback-autopilot-stripe\",\n            \"ProtocolType\": \"HTTP\",\n            \"RouteSelectionExpression\": \"$request.method $request.path\",\n            \"Tags\": {\n                \"aws:cloudformation:stack-name\": \"chargeback-autopilot-stripe-dev\",\n                \"aws:cloudformation:logical-id\": \"HttpApi\",\n                \"aws:cloudformation:stack-id\": \"arn:aws:cloudformation:us-east-1:330140023537:stack/chargeback-autopilot-stripe-dev/e2f0e360-78a5-11f0-ad7f-12e5580d74fd\",\n                \"STAGE\": \"dev\"\n            }\n        },\n        {\n            \"ApiEndpoint\": \"https://ket0g0lurh.execute-api.us-east-1.amazonaws.com\",\n            \"ApiId\": \"ket0g0lurh\",\n            \"ApiKeySelectionExpression\": \"$request.header.x-api-key\",\n            \"CorsConfiguration\": {\n                \"AllowHeaders\": [\n                    \"content-type\",\n                    \"x-amz-date\",\n                    \"authorization\",\n                    \"x-api-key\",\n                    \"x-amz-security-token\",\n                    \"x-amz-user-agent\",\n                    \"x-amzn-trace-id\"\n                ],\n                \"AllowMethods\": [\n                    \"OPTIONS\",\n                    \"GET\",\n                    \"POST\"\n                ],\n                \"AllowOrigins\": [\n                    \"*\"\n                ]\n            },\n            \"CreatedDate\": \"2025-08-14T03:01:49+00:00\",\n            \"DisableExecuteApiEndpoint\": false,\n            \"IpAddressType\": \"ipv4\",\n            \"Name\": \"prod-chargeback-autopilot-stripe\",\n            \"ProtocolType\": \"HTTP\",\n            \"RouteSelectionExpression\": \"$request.method $request.path\",\n            \"Tags\": {\n                \"aws:cloudformation:stack-name\": \"chargeback-autopilot-stripe-prod\",\n                \"aws:cloudformation:logical-id\": \"HttpApi\",\n                \"aws:cloudformation:stack-id\": \"arn:aws:cloudformation:us-east-1:330140023537:stack/chargeback-autopilot-stripe-prod/e7ea7d80-78ba-11f0-85f4-0e28a2080111\",\n                \"STAGE\": \"prod\"\n            }\n        }\n    ]\n}\n"
+    }
+  },
+  "claims": {},
+  "reality": {},
+  "discrepancies": [
+    "100% ready",
+    "GPT-5 working",
+    "Production ready"
+  ],
+  "summary": {
+    "functionalPercentage": 75,
+    "lambdaWorking": 26,
+    "apiWorking": 3,
+    "infrastructureComponents": 3,
+    "claimsVerified": 4,
+    "totalClaims": 7,
+    "gpt5Reality": {
+      "codeReferences": true,
+      "actuallyExists": false,
+      "apiKeyConfigured": false,
+      "workingInProduction": false
+    }
+  }
+}

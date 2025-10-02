@@ -1,0 +1,143 @@
+{
+  "timestamp": "2025-08-14T17:04:47.971Z",
+  "environment": "dev",
+  "phases": {
+    "environment": {
+      "status": "warning",
+      "checks": {
+        "nodejs": "pass",
+        "stripe": "pass",
+        "ioredis": "pass",
+        "openai": "pass",
+        "@aws-sdk/client-dynamodb": "pass",
+        "redis": "pass",
+        "aws": "pass",
+        "stripeSSM": "warning",
+        "gpt5": "warning"
+      }
+    },
+    "redis": {
+      "status": "warning",
+      "metrics": {
+        "opsPerSecond": 6149.687716090431,
+        "avgCacheTime": 0.09238419000000249,
+        "patternLookupTime": 0.18409931999997753,
+        "fraudDetection": "operational",
+        "feedbackLoop": "operational"
+      }
+    },
+    "gpt5": {
+      "status": "pass",
+      "features": {
+        "winPredictor": "pass",
+        "winRate": "pass",
+        "narrative": "pass",
+        "ce3Detection": "pass",
+        "evidenceCollector": "pass",
+        "riskScoring": "pass"
+      }
+    },
+    "mlPipeline": {
+      "status": "pass",
+      "pipeline": {
+        "disputeCreated": "pass",
+        "processing": "pass",
+        "caching": "pass",
+        "resolution": "pass",
+        "feedback": "pass",
+        "modelUpdate": "pass",
+        "tracking": "pass"
+      }
+    },
+    "webhook": {
+      "status": "pass",
+      "webhook": {
+        "stripeCLI": "pass",
+        "lambda": "pass",
+        "processingTime": "pass",
+        "dynamodb": "pass",
+        "caching": "pass",
+        "evidenceCollection": "pass"
+      }
+    },
+    "api": {
+      "status": "pass",
+      "endpoints": {
+        "listCases": "pass",
+        "getCase": "pass",
+        "analyzeCase": "pass",
+        "collectEvidence": "pass",
+        "submitCase": "pass",
+        "getMetrics": "pass",
+        "healthCheck": "pass"
+      }
+    },
+    "loadTest": {
+      "status": "warning",
+      "load": {
+        "totalTime": 1000.343003,
+        "avgProcessing": 568.32373343,
+        "successRate": 97,
+        "errors": 3,
+        "redisPerformance": "pass",
+        "lambdaConcurrency": "pass"
+      }
+    },
+    "ce3": {
+      "status": "pass",
+      "ce3": {
+        "disputeCreated": "pass",
+        "detection": "pass",
+        "evidencePrep": "pass",
+        "winProbability": "pass",
+        "processingTime": "pass"
+      }
+    },
+    "fraud": {
+      "status": "warning",
+      "fraud": {
+        "serialPattern": "pass",
+        "velocityCheck": "warning",
+        "blacklist": "pass",
+        "networkDetection": "pass",
+        "scoring": "pass"
+      }
+    },
+    "businessMetrics": {
+      "status": "pass",
+      "metrics": {
+        "monthlyValue": "pass",
+        "roi": "pass",
+        "savings": "pass",
+        "winRate": "pass",
+        "processingTime": "pass",
+        "cacheHitRate": "pass",
+        "mlAccuracy": "pass"
+      }
+    }
+  },
+  "metrics": {
+    "winRate": 0.68,
+    "processingTime": 1.5,
+    "cacheHitRate": 0.95,
+    "mlAccuracy": 0.79,
+    "monthlyDisputes": 100,
+    "avgDisputeAmount": 140,
+    "monthlyValue": 9520,
+    "roi": 1091.4893617021276,
+    "customerSavings": 1343
+  },
+  "errors": [],
+  "warnings": [],
+  "overall": {
+    "readiness": 60,
+    "passed": 6,
+    "failed": 0,
+    "total": 10,
+    "recommendations": [
+      "Address all failed tests",
+      "Review architecture and implementation",
+      "Extensive testing required"
+    ]
+  }
+}

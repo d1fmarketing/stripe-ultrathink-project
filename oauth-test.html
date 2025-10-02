@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>StripedShield OAuth Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            border-bottom: 2px solid #635bff;
+            padding-bottom: 10px;
+        }
+        .status {
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        button {
+            background: #635bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 10px 0;
+        }
+        button:hover {
+            background: #5243d3;
+        }
+        pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🛡️ StripedShield OAuth Test</h1>
+        
+        <div class="status success">
+            <h2>✅ OAuth Configuration Status</h2>
+            <ul>
+                <li><strong>Stripe OAuth:</strong> ENABLED</li>
+                <li><strong>Platform Name:</strong> StripedShield</li>
+                <li><strong>Client ID:</strong> ca_SsL2dWaMFTzSsFMMGzraPtJY2OiPPRID</li>
+                <li><strong>Environment:</strong> LIVE</li>
+            </ul>
+        </div>
+
+        <div class="status info">
+            <h2>🔗 Direct OAuth URL</h2>
+            <p>Click the button below to test the OAuth flow:</p>
+            <button onclick="connectStripe()">Connect Your Stripe Account</button>
+            
+            <p><strong>What will happen:</strong></p>
+            <ol>
+                <li>You'll be redirected to Stripe</li>
+                <li>You'll see "Connect with StripedShield"</li>
+                <li>After authorizing, you'll be redirected back</li>
+                <li>The callback will save your account connection</li>
+            </ol>
+        </div>
+
+        <div class="status info">
+            <h2>📋 OAuth URL Components</h2>
+            <pre id="oauth-url"></pre>
+        </div>
+
+        <script>
+            function generateCSRFToken() {
+                return Math.random().toString(36).substring(2, 15) + 
+                       Math.random().toString(36).substring(2, 15);
+            }
+
+            function connectStripe() {
+                const state = JSON.stringify({
+                    csrf: generateCSRFToken(),
+                    timestamp: Date.now(),
+                    firebase_uid: 'test_user_' + Date.now()
+                });
+                
+                const params = new URLSearchParams({
+                    response_type: 'code',
+                    client_id: 'ca_SsL2dWaMFTzSsFMMGzraPtJY2OiPPRID',
+                    scope: 'read_write',
+                    redirect_uri: 'https://ket0g0lurh.execute-api.us-east-1.amazonaws.com/auth/stripe/callback',
+                    state: btoa(state)
+                });
+                
+                const url = `https://connect.stripe.com/oauth/authorize?${params}`;
+                
+                // Show the URL for reference
+                document.getElementById('oauth-url').textContent = url;
+                
+                // Open in new tab for testing
+                window.open(url, '_blank');
+            }
+
+            // Show initial URL
+            window.onload = function() {
+                const params = new URLSearchParams({
+                    response_type: 'code',
+                    client_id: 'ca_SsL2dWaMFTzSsFMMGzraPtJY2OiPPRID',
+                    scope: 'read_write',
+                    redirect_uri: 'https://ket0g0lurh.execute-api.us-east-1.amazonaws.com/auth/stripe/callback',
+                    state: 'example_state_token'
+                });
+                
+                document.getElementById('oauth-url').textContent = 
+                    `https://connect.stripe.com/oauth/authorize?\n${params.toString().replace(/&/g, '\n')}`;
+            };
+        </script>
+    </div>
+</body>
+</html>

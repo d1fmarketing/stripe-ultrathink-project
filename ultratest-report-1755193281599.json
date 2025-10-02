@@ -1,0 +1,36 @@
+{
+  "timestamp": "2025-08-14T17:41:21.599Z",
+  "results": {
+    "phases": [
+      {
+        "name": "Dispute Flow",
+        "status": "passed",
+        "duration": 1,
+        "metrics": {
+          "ce3Eligible": true,
+          "evidenceFields": 4,
+          "winProbability": 65
+        }
+      }
+    ],
+    "errors": [
+      {
+        "phase": "Stripe",
+        "error": "Invalid API Key provided: sk_test_***********************************************************************************************ZhsW"
+      }
+    ],
+    "metrics": {}
+  },
+  "summary": {
+    "totalTests": 1,
+    "passedTests": 1,
+    "failedTests": 0,
+    "totalDuration": 1,
+    "errors": [
+      {
+        "phase": "Stripe",
+        "error": "Invalid API Key provided: sk_test_***********************************************************************************************ZhsW"
+      }
+    ]
+  }
+}

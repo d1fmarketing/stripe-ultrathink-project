@@ -1,0 +1,31 @@
+{
+  "rules": {
+    "users": {
+      "$uid": {
+        ".read": "$uid === auth.uid",
+        ".write": "$uid === auth.uid",
+        ".validate": "newData.hasChildren(['email', 'created_at'])"
+      }
+    },
+    "merchants": {
+      "$merchant_id": {
+        ".read": "auth != null && (data.child('firebase_uid').val() === auth.uid || root.child('users').child(auth.uid).child('stripe_account_id').val() === $merchant_id)",
+        ".write": "auth != null && (!data.exists() || data.child('firebase_uid').val() === auth.uid)"
+      }
+    },
+    "disputes": {
+      "$dispute_id": {
+        ".read": "auth != null && root.child('merchants').child(data.child('merchant_id').val()).child('firebase_uid').val() === auth.uid",
+        ".write": false
+      }
+    },
+    "subscriptions": {
+      "$uid": {
+        ".read": "$uid === auth.uid",
+        ".write": false
+      }
+    },
+    ".read": false,
+    ".write": false
+  }
+}

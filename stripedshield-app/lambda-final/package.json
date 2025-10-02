@@ -1,0 +1,13 @@
+{
+  "name": "stripedshield",
+  "version": "1.0.0",
+  "dependencies": {
+    "stripe": "^18.4.0",
+    "@aws-sdk/client-dynamodb": "^3.868.0",
+    "@aws-sdk/lib-dynamodb": "^3.864.0",
+    "@aws-sdk/client-sfn": "^3.600.0",
+    "@aws-sdk/client-cloudwatch": "^3.864.0",
+    "redis": "^5.8.1",
+    "openai": "^5.12.2"
+  }
+}

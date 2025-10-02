@@ -1,0 +1,57 @@
+Lead Name,Company,Industry,Email Pattern,LinkedIn,Twitter,Est Monthly Disputes,Priority,Notes,Outreach Status
+Michael Roberts,ShopifyPlus Store,E-commerce,michael@{company}.com,/in/michaelroberts,@mroberts_shop,200,HIGH,Posted about payment issues last week,Not contacted
+Jennifer Chang,TechGadgets Pro,E-commerce,jennifer@techgadgetspro.com,/in/jenchang,@techgadgetspro,150,HIGH,Growing fast per CrunchBase,Not contacted
+David Miller,CloudSaaS Inc,SaaS,david@cloudsaas.io,/in/davidmiller-saas,@cloudsaas,100,HIGH,B2B subscriptions = disputes,Not contacted
+Sarah Thompson,FashionForward,E-commerce,sarah@fashionforward.com,/in/sarahthompson,@fashion_forward,250,HIGH,High-ticket items,Not contacted
+James Wilson,Digital Downloads Hub,Digital Products,james@digitaldownloadshub.com,/in/jameswilson,@digitaldlhub,180,HIGH,Digital goods = high disputes,Not contacted
+Emily Rodriguez,Subscription Box Co,Subscriptions,emily@subboxco.com,/in/emilyrod,@subboxco,120,HIGH,Subscription model,Not contacted
+Robert Kim,Online Course Platform,Education,robert@courseplat.com,/in/robertkim,@courseplat,90,MEDIUM,Info products,Not contacted
+Lisa Anderson,Fitness Equipment Store,E-commerce,lisa@fitequipstore.com,/in/lisaanderson,@fitequipstore,160,HIGH,High AOV items,Not contacted
+Mark Taylor,Software Marketplace,SaaS,mark@softmarketplace.com,/in/marktaylor,@softmarket,110,MEDIUM,Digital marketplace,Not contacted
+Amanda White,Beauty Box Monthly,Subscriptions,amanda@beautyboxmonthly.com,/in/amandawhite,@beautyboxmon,140,HIGH,Recurring billing,Not contacted
+Chris Johnson,Gaming Gear Shop,E-commerce,chris@gaminggearshop.com,/in/chrisjohnson,@gaminggear,170,HIGH,Young demographic,Not contacted
+Patricia Lee,Wellness Products,E-commerce,patricia@wellproducts.com,/in/patricialee,@wellproducts,130,MEDIUM,Health niche,Not contacted
+Kevin Brown,Print on Demand Store,E-commerce,kevin@podstore.com,/in/kevinbrown,@podstore,95,MEDIUM,Custom products,Not contacted
+Rachel Green,Jewelry Boutique Online,E-commerce,rachel@jewelryboutique.com,/in/rachelgreen,@jewelboutique,200,HIGH,Luxury items,Not contacted
+Steven Martinez,Dropshipping Empire,E-commerce,steven@dropempire.com,/in/stevenmartinez,@dropempire,300,HIGH,High volume low margin,Not contacted
+Nancy Davis,Craft Supplies Store,E-commerce,nancy@craftsuppliesstore.com,/in/nancydavis,@craftstore,85,MEDIUM,Hobby market,Not contacted
+Brian Garcia,Electronics Outlet,E-commerce,brian@electronicsoutlet.com,/in/briangarcia,@elecoutlet,220,HIGH,Electronics = disputes,Not contacted
+Michelle Thomas,Fashion Rental Service,Subscriptions,michelle@fashionrental.com,/in/michellethomas,@fashrent,160,HIGH,Rental model complexities,Not contacted
+Jason Moore,Outdoor Gear Direct,E-commerce,jason@outdoorgeardirect.com,/in/jasonmoore,@outdoorgear,140,MEDIUM,Seasonal business,Not contacted
+Laura Jackson,Pet Supplies Plus,E-commerce,laura@petsuppliesplus.com,/in/laurajackson,@petsupplus,110,MEDIUM,Subscription options,Not contacted
+Daniel Harris,Music Instrument Shop,E-commerce,daniel@musicinstrumentshop.com,/in/danielharris,@musicshop,130,MEDIUM,High-value items,Not contacted
+Jessica Clark,Vitamin Store Online,E-commerce,jessica@vitaminstoreonline.com,/in/jessicaclark,@vitaminstore,150,HIGH,Supplements = chargebacks,Not contacted
+Ryan Lewis,Sneaker Resale Platform,Marketplace,ryan@sneakerresale.com,/in/ryanlewis,@sneakerresale,280,HIGH,Resale = auth issues,Not contacted
+Ashley Walker,Home Decor Boutique,E-commerce,ashley@homedecorboutique.com,/in/ashleywalker,@homedecor,100,MEDIUM,Home goods,Not contacted
+Timothy Hall,Tech Repair Parts,E-commerce,timothy@techrepairparts.com,/in/timothyhall,@techrepair,120,MEDIUM,B2B and B2C mix,Not contacted
+Samantha Allen,Luxury Watches Online,E-commerce,samantha@luxurywatches.com,/in/samanthaallen,@luxwatches,350,HIGH,Very high AOV,Not contacted
+Andrew Young,Meal Prep Delivery,Subscriptions,andrew@mealprepdelivery.com,/in/andrewyoung,@mealprep,170,HIGH,Food delivery disputes,Not contacted
+Karen King,Designer Handbags Outlet,E-commerce,karen@designerhandbags.com,/in/karenking,@designbags,240,HIGH,Luxury + auth concerns,Not contacted
+Joseph Wright,Automotive Parts Direct,E-commerce,joseph@autopartsdirect.com,/in/josephwright,@autoparts,160,MEDIUM,Technical products,Not contacted
+Betty Lopez,Kids Toys Warehouse,E-commerce,betty@kidstoyswarehouse.com,/in/bettylopez,@kidstoys,140,MEDIUM,Family market,Not contacted
+Charles Hill,Wine Club Monthly,Subscriptions,charles@wineclubmonthly.com,/in/charleshill,@wineclub,190,HIGH,Alcohol = age verification,Not contacted
+Maria Scott,Organic Foods Market,E-commerce,maria@organicfoodsmarket.com,/in/mariascott,@organicfoods,130,MEDIUM,Grocery items,Not contacted
+Paul Green,Collectibles Exchange,Marketplace,paul@collectiblesexchange.com,/in/paulgreen,@collectibles,210,HIGH,High-value collectibles,Not contacted
+Linda Adams,Cosmetics Direct,E-commerce,linda@cosmeticsdirect.com,/in/lindaadams,@cosmetics,180,HIGH,Beauty products,Not contacted
+Gary Baker,Sports Equipment Pro,E-commerce,gary@sportsequipmentpro.com,/in/garybaker,@sportspro,150,MEDIUM,Sporting goods,Not contacted
+Helen Gonzalez,Art Supplies Central,E-commerce,helen@artsuppliescentral.com,/in/helengonzalez,@artsupplies,90,MEDIUM,Creative market,Not contacted
+Kenneth Nelson,Computer Parts Now,E-commerce,kenneth@computerpartsnow.com,/in/kennethnelson,@compparts,170,HIGH,Tech components,Not contacted
+Dorothy Carter,Boutique Clothing Line,E-commerce,dorothy@boutiqueclothing.com,/in/dorothycarter,@boutiqueline,140,MEDIUM,Fashion retail,Not contacted
+George Mitchell,Drone Shop Online,E-commerce,george@droneshoponline.com,/in/georgemitchell,@droneshop,200,HIGH,High-tech products,Not contacted
+Sandra Perez,Natural Supplements Co,E-commerce,sandra@naturalsupplements.com,/in/sandraperez,@natsupps,160,HIGH,Health products,Not contacted
+Donald Roberts,Rare Books Online,E-commerce,donald@rarebooksonline.com,/in/donaldroberts,@rarebooks,110,MEDIUM,Collectible books,Not contacted
+Susan Turner,Eco-Friendly Products,E-commerce,susan@ecofriendlyproducts.com,/in/susanturner,@ecoproducts,120,MEDIUM,Sustainable goods,Not contacted
+Thomas Phillips,Mobile Accessories Hub,E-commerce,thomas@mobileaccessorieshub.com,/in/thomasphillips,@mobilehub,190,HIGH,Phone accessories,Not contacted
+Margaret Campbell,Gourmet Food Store,E-commerce,margaret@gourmetfoodstore.com,/in/margaretcampbell,@gourmetfood,140,MEDIUM,Specialty foods,Not contacted
+Richard Parker,Fitness Subscription Box,Subscriptions,richard@fitnesssubbox.com,/in/richardparker,@fitsubbox,150,HIGH,Monthly subscriptions,Not contacted
+Barbara Evans,Handmade Crafts Market,Marketplace,barbara@handmadecrafts.com,/in/barbaraevans,@handmadecraft,100,MEDIUM,Artisan marketplace,Not contacted
+Edward Edwards,Camping Gear Direct,E-commerce,edward@campinggeardirect.com,/in/edwardedwards,@campgear,130,MEDIUM,Outdoor equipment,Not contacted
+Catherine Collins,Premium Coffee Club,Subscriptions,catherine@premiumcoffeeclub.com,/in/catherinecollins,@coffeeclub,110,MEDIUM,Coffee subscriptions,Not contacted
+Frank Stewart,Vintage Clothing Store,E-commerce,frank@vintageclothingstore.com,/in/frankstewart,@vintagecloth,120,MEDIUM,Vintage fashion,Not contacted
+Ruth Morris,Baby Products Express,E-commerce,ruth@babyproductsexpress.com,/in/ruthmorris,@babyexpress,140,MEDIUM,Baby items,Not contacted
+
+TOTAL: 50 qualified prospects
+HIGH PRIORITY: 26 prospects (100+ disputes/month or high-risk category)
+MEDIUM PRIORITY: 24 prospects
+AVERAGE EST. DISPUTES: 156/month
+POTENTIAL MRR at 20% close rate: $5,990 (10 customers)

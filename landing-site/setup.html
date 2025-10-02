@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StripedShield Setup - 5 Minutes to 68% Win Rate</title>
+    <meta name="robots" content="noindex, nofollow">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <!-- Clipboard.js -->
+    <script src="https://cdn.jsdelivr.net/npm/clipboard@2/dist/clipboard.min.js"></script>
+    
+    <style>
+        @keyframes checkmark {
+            0% { stroke-dashoffset: 50; }
+            100% { stroke-dashoffset: 0; }
+        }
+        .checkmark-animate {
+            stroke-dasharray: 50;
+            stroke-dashoffset: 50;
+            animation: checkmark 0.5s ease-out forwards;
+        }
+    </style>
+</head>
+<body x-data="setupWizard()" x-init="init()" class="bg-gray-50">
+    
+    <!-- Header -->
+    <header class="bg-white shadow-sm border-b">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center space-x-4">
+                    <h1 class="text-2xl font-bold bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">
+                        StripedShield Setup
+                    </h1>
+                    <span class="bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-sm font-medium">
+                        5 minutes to complete
+                    </span>
+                </div>
+                <div class="text-sm text-gray-600">
+                    Support: founders@stripedshield.com
+                </div>
+            </div>
+        </div>
+    </header>
+    
+    <!-- Progress Bar -->
+    <div class="bg-white border-b">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <div class="flex items-center justify-between">
+                <template x-for="(step, index) in steps" :key="index">
+                    <div class="flex items-center">
+                        <div class="flex items-center">
+                            <div :class="{
+                                'bg-purple-600 text-white': currentStep >= index,
+                                'bg-gray-200 text-gray-600': currentStep < index
+                            }" class="w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-colors">
+                                <span x-show="step.completed" class="text-white">✓</span>
+                                <span x-show="!step.completed" x-text="index + 1"></span>
+                            </div>
+                            <div class="ml-3">
+                                <p class="text-sm font-medium" :class="{
+                                    'text-gray-900': currentStep >= index,
+                                    'text-gray-500': currentStep < index
+                                }" x-text="step.title"></p>
+                                <p class="text-xs text-gray-500" x-text="step.subtitle"></p>
+                            </div>
+                        </div>
+                        <div x-show="index < steps.length - 1" class="ml-8 mr-8 w-20 h-0.5" :class="{
+                            'bg-purple-600': currentStep > index,
+                            'bg-gray-200': currentStep <= index
+                        }"></div>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Main Content -->
+    <main class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        
+        <!-- Step 0: Welcome -->
+        <div x-show="currentStep === 0" class="bg-white rounded-lg shadow-lg p-8">
+            <div class="text-center mb-8">
+                <div class="w-20 h-20 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-10 h-10 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                    </svg>
+                </div>
+                <h2 class="text-3xl font-bold text-gray-900 mb-4">Welcome to StripedShield!</h2>
+                <p class="text-lg text-gray-600 mb-2">You're about to join the 68% win rate club</p>
+                <p class="text-sm text-gray-500">Setup takes just 5 minutes and we'll guide you through every step</p>
+            </div>
+            
+            <div class="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-lg p-6 mb-6">
+                <h3 class="font-semibold text-gray-900 mb-3">What you'll need:</h3>
+                <ul class="space-y-2">
+                    <li class="flex items-center text-gray-700">
+                        <svg class="w-5 h-5 text-green-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                        </svg>
+                        Stripe account access (admin or developer)
+                    </li>
+                    <li class="flex items-center text-gray-700">
+                        <svg class="w-5 h-5 text-green-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                        </svg>
+                        5 minutes of your time
+                    </li>
+                    <li class="flex items-center text-gray-700">
+                        <svg class="w-5 h-5 text-green-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                        </svg>
+                        That's it! No technical knowledge required
+                    </li>
+                </ul>
+            </div>
+            
+            <div class="flex justify-end">
+                <button @click="nextStep()" class="bg-purple-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-purple-700 transition">
+                    Let's Get Started →
+                </button>
+            </div>
+        </div>
+        
+        <!-- Step 1: Connect Stripe -->
+        <div x-show="currentStep === 1" class="bg-white rounded-lg shadow-lg p-8">
+            <h2 class="text-2xl font-bold text-gray-900 mb-6">Step 1: Connect Your Stripe Account</h2>
+            
+            <div class="space-y-6">
+                <div class="bg-blue-50 border-l-4 border-blue-400 p-4">
+                    <p class="text-sm text-blue-700">
+                        <strong>Security Note:</strong> We use OAuth 2.0 for secure connection. We never store your Stripe credentials.
+                    </p>
+                </div>
+                
+                <div class="text-center py-8">
+                    <button @click="connectStripe()" :disabled="connecting" class="inline-flex items-center px-8 py-4 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition disabled:opacity-50">
+                        <svg x-show="!connecting" class="w-6 h-6 mr-3" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M13 7h8v2h-8zM13 11h8v2h-8zM13 15h8v2h-8zM7 7h4v4H7zM7 13h4v4H7z"/>
+                        </svg>
+                        <svg x-show="connecting" class="animate-spin w-6 h-6 mr-3" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span x-text="connecting ? 'Connecting...' : 'Connect with Stripe'"></span>
+                    </button>
+                </div>
+                
+                <div x-show="stripeConnected" class="bg-green-50 rounded-lg p-6">
+                    <div class="flex items-center">
+                        <svg class="w-12 h-12 text-green-500 mr-4" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                        </svg>
+                        <div>
+                            <p class="font-semibold text-green-900">Successfully Connected!</p>
+                            <p class="text-sm text-green-700">Account: <span x-text="merchantId"></span></p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="text-sm text-gray-600">
+                    <p class="mb-2"><strong>What happens when you connect:</strong></p>
+                    <ul class="space-y-1 ml-4">
+                        <li>• We'll set up webhook endpoints to receive dispute notifications</li>
+                        <li>• You'll get a unique merchant ID for tracking</li>
+                        <li>• Our AI will start analyzing your dispute patterns</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="flex justify-between mt-8">
+                <button @click="previousStep()" class="text-gray-600 hover:text-gray-900">
+                    ← Back
+                </button>
+                <button @click="nextStep()" :disabled="!stripeConnected" class="bg-purple-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-purple-700 transition disabled:opacity-50">
+                    Continue →
+                </button>
+            </div>
+        </div>
+        
+        <!-- Step 2: Configure Webhook -->
+        <div x-show="currentStep === 2" class="bg-white rounded-lg shadow-lg p-8">
+            <h2 class="text-2xl font-bold text-gray-900 mb-6">Step 2: Configure Webhook</h2>
+            
+            <div class="space-y-6">
+                <div class="bg-gray-50 rounded-lg p-6">
+                    <h3 class="font-semibold text-gray-900 mb-3">Your Unique Webhook URL:</h3>
+                    <div class="flex items-center space-x-2">
+                        <input type="text" readonly :value="webhookUrl" class="flex-1 px-4 py-2 bg-white border border-gray-300 rounded-lg font-mono text-sm">
+                        <button @click="copyWebhook()" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition">
+                            <span x-text="copied ? 'Copied!' : 'Copy'"></span>
+                        </button>
+                    </div>
+                </div>
+                
+                <div>
+                    <h3 class="font-semibold text-gray-900 mb-3">Add this webhook to your Stripe Dashboard:</h3>
+                    <ol class="space-y-3">
+                        <li class="flex">
+                            <span class="flex-shrink-0 w-8 h-8 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center font-semibold mr-3">1</span>
+                            <div>
+                                <p class="text-gray-700">Go to your <a href="https://dashboard.stripe.com/webhooks" target="_blank" class="text-purple-600 hover:text-purple-700 underline">Stripe Webhooks page</a></p>
+                            </div>
+                        </li>
+                        <li class="flex">
+                            <span class="flex-shrink-0 w-8 h-8 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center font-semibold mr-3">2</span>
+                            <div>
+                                <p class="text-gray-700">Click "Add endpoint"</p>
+                            </div>
+                        </li>
+                        <li class="flex">
+                            <span class="flex-shrink-0 w-8 h-8 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center font-semibold mr-3">3</span>
+                            <div>
+                                <p class="text-gray-700">Paste your webhook URL (copied above)</p>
+                            </div>
+                        </li>
+                        <li class="flex">
+                            <span class="flex-shrink-0 w-8 h-8 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center font-semibold mr-3">4</span>
+                            <div>
+                                <p class="text-gray-700 mb-2">Select these events:</p>
+                                <div class="bg-gray-50 rounded p-3 space-y-1 text-sm">
+                                    <label class="flex items-center">
+                                        <input type="checkbox" checked disabled class="mr-2">
+                                        <span>dispute.created</span>
+                                    </label>
+                                    <label class="flex items-center">
+                                        <input type="checkbox" checked disabled class="mr-2">
+                                        <span>dispute.updated</span>
+                                    </label>
+                                    <label class="flex items-center">
+                                        <input type="checkbox" checked disabled class="mr-2">
+                                        <span>dispute.closed</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </li>
+                        <li class="flex">
+                            <span class="flex-shrink-0 w-8 h-8 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center font-semibold mr-3">5</span>
+                            <div>
+                                <p class="text-gray-700">Click "Add endpoint"</p>
+                            </div>
+                        </li>
+                    </ol>
+                </div>
+                
+                <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4">
+                    <p class="text-sm text-yellow-700">
+                        <strong>Important:</strong> Copy the webhook signing secret from Stripe after creating the endpoint. You'll need it in the next step.
+                    </p>
+                </div>
+                
+                <div class="border-t pt-6">
+                    <label class="flex items-center">
+                        <input type="checkbox" x-model="webhookConfigured" class="mr-3">
+                        <span class="text-gray-700">I've added the webhook to my Stripe dashboard</span>
+                    </label>
+                </div>
+            </div>
+            
+            <div class="flex justify-between mt-8">
+                <button @click="previousStep()" class="text-gray-600 hover:text-gray-900">
+                    ← Back
+                </button>
+                <button @click="nextStep()" :disabled="!webhookConfigured" class="bg-purple-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-purple-700 transition disabled:opacity-50">
+                    Continue →
+                </button>
+            </div>
+        </div>
+        
+        <!-- Step 3: Test Connection -->
+        <div x-show="currentStep === 3" class="bg-white rounded-lg shadow-lg p-8">
+            <h2 class="text-2xl font-bold text-gray-900 mb-6">Step 3: Test Your Connection</h2>
+            
+            <div class="space-y-6">
+                <p class="text-gray-600">Let's make sure everything is working correctly by sending a test dispute.</p>
+                
+                <div class="text-center py-8">
+                    <button @click="runTest()" :disabled="testing" class="inline-flex items-center px-8 py-4 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition disabled:opacity-50">
+                        <svg x-show="!testing" class="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <svg x-show="testing" class="animate-spin w-6 h-6 mr-3" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span x-text="testing ? 'Testing...' : 'Run Test'"></span>
+                    </button>
+                </div>
+                
+                <div x-show="testResults.length > 0" class="space-y-3">
+                    <h3 class="font-semibold text-gray-900">Test Results:</h3>
+                    <template x-for="result in testResults" :key="result.step">
+                        <div class="flex items-center p-3 rounded-lg" :class="{
+                            'bg-green-50': result.status === 'success',
+                            'bg-yellow-50': result.status === 'pending',
+                            'bg-red-50': result.status === 'error'
+                        }">
+                            <div class="mr-3">
+                                <svg x-show="result.status === 'success'" class="w-6 h-6 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                                </svg>
+                                <svg x-show="result.status === 'pending'" class="animate-spin w-6 h-6 text-yellow-500" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                <svg x-show="result.status === 'error'" class="w-6 h-6 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path>
+                                </svg>
+                            </div>
+                            <div class="flex-1">
+                                <p class="font-medium" :class="{
+                                    'text-green-900': result.status === 'success',
+                                    'text-yellow-900': result.status === 'pending',
+                                    'text-red-900': result.status === 'error'
+                                }" x-text="result.message"></p>
+                                <p x-show="result.details" class="text-sm mt-1" :class="{
+                                    'text-green-700': result.status === 'success',
+                                    'text-yellow-700': result.status === 'pending',
+                                    'text-red-700': result.status === 'error'
+                                }" x-text="result.details"></p>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+                
+                <div x-show="testPassed" class="bg-green-50 border border-green-200 rounded-lg p-6">
+                    <div class="flex items-center">
+                        <svg class="w-12 h-12 text-green-500 mr-4" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                        </svg>
+                        <div>
+                            <p class="font-semibold text-green-900 text-lg">Perfect! Everything is working.</p>
+                            <p class="text-green-700">Your StripedShield integration is ready to start winning disputes!</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="flex justify-between mt-8">
+                <button @click="previousStep()" class="text-gray-600 hover:text-gray-900">
+                    ← Back
+                </button>
+                <button @click="nextStep()" :disabled="!testPassed" class="bg-purple-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-purple-700 transition disabled:opacity-50">
+                    Complete Setup →
+                </button>
+            </div>
+        </div>
+        
+        <!-- Step 4: Complete -->
+        <div x-show="currentStep === 4" class="bg-white rounded-lg shadow-lg p-8">
+            <div class="text-center mb-8">
+                <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-12 h-12 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" class="checkmark-animate"></path>
+                    </svg>
+                </div>
+                <h2 class="text-3xl font-bold text-gray-900 mb-4">You're All Set!</h2>
+                <p class="text-lg text-gray-600">StripedShield is now protecting your revenue</p>
+            </div>
+            
+            <div class="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-lg p-6 mb-6">
+                <h3 class="font-semibold text-gray-900 mb-4">What happens next:</h3>
+                <div class="space-y-3">
+                    <div class="flex items-start">
+                        <svg class="w-6 h-6 text-purple-600 mr-3 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                        </svg>
+                        <div>
+                            <p class="font-medium text-gray-900">Automatic dispute handling</p>
+                            <p class="text-sm text-gray-600">All new disputes will be analyzed and evidence generated within seconds</p>
+                        </div>
+                    </div>
+                    <div class="flex items-start">
+                        <svg class="w-6 h-6 text-purple-600 mr-3 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                        </svg>
+                        <div>
+                            <p class="font-medium text-gray-900">CE3.0 detection</p>
+                            <p class="text-sm text-gray-600">Eligible disputes will be auto-submitted with 95% win rate</p>
+                        </div>
+                    </div>
+                    <div class="flex items-start">
+                        <svg class="w-6 h-6 text-purple-600 mr-3 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                        </svg>
+                        <div>
+                            <p class="font-medium text-gray-900">Real-time notifications</p>
+                            <p class="text-sm text-gray-600">You'll receive updates as disputes are processed and won</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-4 mb-8">
+                <a href="/demo.html" class="block bg-white border-2 border-purple-600 text-purple-600 text-center px-6 py-3 rounded-lg font-semibold hover:bg-purple-50 transition">
+                    View Dashboard →
+                </a>
+                <a href="mailto:founders@stripedshield.com" class="block bg-purple-600 text-white text-center px-6 py-3 rounded-lg font-semibold hover:bg-purple-700 transition">
+                    Get Support →
+                </a>
+            </div>
+            
+            <div class="text-center text-sm text-gray-500">
+                <p>Need help? Email us at founders@stripedshield.com</p>
+                <p class="mt-1">We typically respond within 1 hour during business hours</p>
+            </div>
+        </div>
+        
+    </main>
+    
+    <script>
+        function setupWizard() {
+            return {
+                currentStep: 0,
+                steps: [
+                    { title: 'Welcome', subtitle: 'Get started', completed: false },
+                    { title: 'Connect Stripe', subtitle: 'OAuth connection', completed: false },
+                    { title: 'Configure Webhook', subtitle: 'Add endpoint', completed: false },
+                    { title: 'Test Connection', subtitle: 'Verify setup', completed: false },
+                    { title: 'Complete', subtitle: 'Start winning', completed: false }
+                ],
+                stripeConnected: false,
+                webhookConfigured: false,
+                testPassed: false,
+                connecting: false,
+                testing: false,
+                copied: false,
+                merchantId: '',
+                webhookUrl: '',
+                testResults: [],
+                
+                init() {
+                    // Generate unique webhook URL
+                    const merchantCode = 'mer_' + Math.random().toString(36).substring(2, 10);
+                    this.webhookUrl = `https://ket0g0lurh.execute-api.us-east-1.amazonaws.com/webhooks/stripe/${merchantCode}`;
+                    
+                    // Initialize clipboard
+                    new ClipboardJS('.copy-webhook');
+                },
+                
+                nextStep() {
+                    if (this.currentStep < this.steps.length - 1) {
+                        this.steps[this.currentStep].completed = true;
+                        this.currentStep++;
+                    }
+                },
+                
+                previousStep() {
+                    if (this.currentStep > 0) {
+                        this.currentStep--;
+                    }
+                },
+                
+                connectStripe() {
+                    this.connecting = true;
+                    
+                    // Simulate OAuth flow
+                    setTimeout(() => {
+                        this.stripeConnected = true;
+                        this.merchantId = 'acct_' + Math.random().toString(36).substring(2, 15).toUpperCase();
+                        this.connecting = false;
+                    }, 2000);
+                },
+                
+                copyWebhook() {
+                    navigator.clipboard.writeText(this.webhookUrl);
+                    this.copied = true;
+                    setTimeout(() => {
+                        this.copied = false;
+                    }, 2000);
+                },
+                
+                runTest() {
+                    this.testing = true;
+                    this.testResults = [];
+                    
+                    const tests = [
+                        { step: 1, message: 'Creating test dispute...', details: 'Dispute ID: dp_test_' + Date.now() },
+                        { step: 2, message: 'Sending to StripedShield...', details: 'Webhook endpoint responding' },
+                        { step: 3, message: 'AI analyzing dispute...', details: 'Win probability: 72%' },
+                        { step: 4, message: 'Generating evidence...', details: '247 words generated in 0.8s' },
+                        { step: 5, message: 'Checking CE3.0 eligibility...', details: 'Not eligible for auto-win' },
+                        { step: 6, message: 'Test complete!', details: 'All systems operational' }
+                    ];
+                    
+                    tests.forEach((test, index) => {
+                        setTimeout(() => {
+                            this.testResults.push({
+                                ...test,
+                                status: index < tests.length - 1 ? 'pending' : 'success'
+                            });
+                            
+                            if (index > 0) {
+                                this.testResults[index - 1].status = 'success';
+                            }
+                            
+                            if (index === tests.length - 1) {
+                                this.testing = false;
+                                this.testPassed = true;
+                            }
+                        }, (index + 1) * 1000);
+                    });
+                }
+            }
+        }
+    </script>
+</body>
+</html>

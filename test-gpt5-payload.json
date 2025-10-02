@@ -1,0 +1,36 @@
+{
+    "merchant": {
+        "id": "merchant_test",
+        "stripe_account_id": "acct_test"
+    },
+    "charge": {
+        "id": "ch_test_gpt5",
+        "amount": 29900,
+        "currency": "usd",
+        "created": 1724000000,
+        "customer": "cus_test",
+        "description": "Test GPT-5 narrative generation",
+        "payment_method_details": {
+            "type": "card"
+        },
+        "outcome": {
+            "network_status": "approved_by_network",
+            "risk_level": "normal"
+        }
+    },
+    "dispute": {
+        "id": "dp_test_gpt5",
+        "reason": "fraudulent",
+        "amount": 29900,
+        "status": "warning_needs_response",
+        "evidence_details": {
+            "due_by": 1724604800
+        }
+    },
+    "customer": {
+        "id": "cus_test",
+        "email": "test@example.com",
+        "name": "Test Customer",
+        "created": 1720000000
+    }
+}

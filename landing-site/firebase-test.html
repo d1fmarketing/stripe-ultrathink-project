@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Firebase Configuration Test - ULTRATHINK</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center">
+    
+    <div class="bg-white rounded-lg shadow-lg p-8 max-w-2xl w-full">
+        <h1 class="text-2xl font-bold mb-6">🔥 Firebase Configuration Test</h1>
+        
+        <div id="status" class="space-y-4">
+            <div class="p-4 bg-blue-50 rounded">
+                <p class="text-sm">Testing Firebase configuration...</p>
+            </div>
+        </div>
+        
+        <div class="mt-6 space-y-4">
+            <button onclick="testEmailAuth()" 
+                    class="w-full bg-purple-600 text-white py-2 rounded hover:bg-purple-700">
+                Test Email Auth
+            </button>
+            
+            <button onclick="testGoogleAuth()" 
+                    class="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700">
+                Test Google Auth
+            </button>
+            
+            <button onclick="checkAuthState()" 
+                    class="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700">
+                Check Auth State
+            </button>
+        </div>
+        
+        <div id="results" class="mt-6 space-y-2"></div>
+    </div>
+    
+    <!-- Firebase SDK v9 (Modular) -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { 
+            getAuth, 
+            signInWithEmailAndPassword,
+            createUserWithEmailAndPassword,
+            signInWithPopup,
+            GoogleAuthProvider,
+            onAuthStateChanged,
+            connectAuthEmulator
+        } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+        
+        // Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyBGemDqwlwE4v0tZ7RXttJsW9l_0YrtBNA",
+            authDomain: "stripecharge-b27a6.firebaseapp.com",
+            projectId: "stripecharge-b27a6",
+            storageBucket: "stripecharge-b27a6.firebasestorage.app",
+            messagingSenderId: "573857361404",
+            appId: "1:573857361404:web:50dab6d2b28c441cae5679",
+            measurementId: "G-27XBNSG2Z9"
+        };
+        
+        let app, auth, googleProvider;
+        const statusDiv = document.getElementById('status');
+        const resultsDiv = document.getElementById('results');
+        
+        function addResult(message, type = 'info') {
+            const colors = {
+                success: 'bg-green-100 text-green-800',
+                error: 'bg-red-100 text-red-800',
+                warning: 'bg-yellow-100 text-yellow-800',
+                info: 'bg-blue-100 text-blue-800'
+            };
+            
+            resultsDiv.innerHTML += `
+                <div class="p-3 rounded ${colors[type]}">
+                    <p class="text-sm">${message}</p>
+                </div>
+            `;
+        }
+        
+        // Initialize Firebase with error handling
+        try {
+            console.log('🔥 ULTRATHINK: Initializing Firebase...');
+            console.log('Config:', firebaseConfig);
+            
+            app = initializeApp(firebaseConfig);
+            addResult('✅ Firebase App initialized successfully', 'success');
+            
+            auth = getAuth(app);
+            addResult('✅ Firebase Auth initialized', 'success');
+            
+            // Check if auth is properly configured
+            if (auth) {
+                addResult(`✅ Auth object exists: ${auth.name || 'auth'}`, 'success');
+                addResult(`📍 Auth domain: ${firebaseConfig.authDomain}`, 'info');
+                addResult(`📍 Project ID: ${firebaseConfig.projectId}`, 'info');
+            }
+            
+            googleProvider = new GoogleAuthProvider();
+            addResult('✅ Google Provider initialized', 'success');
+            
+            // Listen for auth state changes
+            onAuthStateChanged(auth, (user) => {
+                if (user) {
+                    addResult(`🔐 User logged in: ${user.email}`, 'success');
+                } else {
+                    addResult('🔓 No user logged in', 'warning');
+                }
+            });
+            
+            statusDiv.innerHTML = `
+                <div class="p-4 bg-green-50 rounded">
+                    <p class="text-sm font-semibold text-green-800">✅ Firebase configuration looks good!</p>
+                    <p class="text-xs text-green-600 mt-1">Now test the authentication methods below</p>
+                </div>
+            `;
+            
+        } catch (error) {
+            console.error('Firebase initialization error:', error);
+            
+            statusDiv.innerHTML = `
+                <div class="p-4 bg-red-50 rounded">
+                    <p class="text-sm font-semibold text-red-800">❌ Firebase initialization failed</p>
+                    <p class="text-xs text-red-600 mt-1">${error.message}</p>
+                </div>
+            `;
+            
+            addResult(`Error code: ${error.code}`, 'error');
+            addResult(`Error message: ${error.message}`, 'error');
+            
+            // Provide specific guidance based on error
+            if (error.code === 'auth/configuration-not-found') {
+                addResult('🔧 Solution: Enable Authentication in Firebase Console', 'warning');
+                addResult('1. Go to https://console.firebase.google.com', 'info');
+                addResult('2. Select project: stripecharge-b27a6', 'info');
+                addResult('3. Click Authentication → Get Started', 'info');
+                addResult('4. Enable Email/Password and Google sign-in methods', 'info');
+            }
+        }
+        
+        // Test functions
+        window.testEmailAuth = async function() {
+            try {
+                addResult('Testing email auth...', 'info');
+                const testEmail = 'test@stripedshield.com';
+                const testPassword = 'Test123!@#';
+                
+                // Try to create a test user
+                const userCredential = await createUserWithEmailAndPassword(auth, testEmail, testPassword);
+                addResult(`✅ Test user created: ${userCredential.user.email}`, 'success');
+                
+                // Sign out
+                await auth.signOut();
+                
+                // Try to sign in
+                const signInResult = await signInWithEmailAndPassword(auth, testEmail, testPassword);
+                addResult(`✅ Sign in successful: ${signInResult.user.email}`, 'success');
+                
+            } catch (error) {
+                addResult(`❌ Email auth error: ${error.code} - ${error.message}`, 'error');
+                
+                if (error.code === 'auth/configuration-not-found') {
+                    addResult('⚠️ Email/Password authentication is not enabled in Firebase Console', 'warning');
+                } else if (error.code === 'auth/email-already-in-use') {
+                    // Try to sign in instead
+                    try {
+                        const signInResult = await signInWithEmailAndPassword(auth, 'test@stripedshield.com', 'Test123!@#');
+                        addResult(`✅ Sign in successful (user already exists): ${signInResult.user.email}`, 'success');
+                    } catch (signInError) {
+                        addResult(`❌ Sign in also failed: ${signInError.message}`, 'error');
+                    }
+                }
+            }
+        }
+        
+        window.testGoogleAuth = async function() {
+            try {
+                addResult('Testing Google OAuth...', 'info');
+                
+                const result = await signInWithPopup(auth, googleProvider);
+                const user = result.user;
+                
+                addResult(`✅ Google sign in successful: ${user.email}`, 'success');
+                addResult(`User name: ${user.displayName}`, 'info');
+                addResult(`User ID: ${user.uid}`, 'info');
+                
+            } catch (error) {
+                addResult(`❌ Google auth error: ${error.code} - ${error.message}`, 'error');
+                
+                if (error.code === 'auth/configuration-not-found') {
+                    addResult('⚠️ Google authentication is not enabled in Firebase Console', 'warning');
+                    addResult('Enable it at: Authentication → Sign-in method → Google', 'info');
+                } else if (error.code === 'auth/popup-closed-by-user') {
+                    addResult('Popup was closed by user', 'warning');
+                } else if (error.code === 'auth/popup-blocked') {
+                    addResult('Popup was blocked by browser', 'warning');
+                }
+            }
+        }
+        
+        window.checkAuthState = function() {
+            const user = auth.currentUser;
+            if (user) {
+                addResult(`✅ Current user: ${user.email}`, 'success');
+                addResult(`Provider: ${user.providerData[0]?.providerId}`, 'info');
+                addResult(`UID: ${user.uid}`, 'info');
+            } else {
+                addResult('No user currently signed in', 'warning');
+            }
+        }
+        
+        console.log('🚀 Firebase test page ready!');
+    </script>
+</body>
+</html>

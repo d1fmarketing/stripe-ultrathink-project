@@ -1,0 +1,221 @@
+{
+  "runId": "real_e2e_1755198430340",
+  "startTime": 1755198430350,
+  "environment": "production",
+  "lambdaTests": [
+    {
+      "function": "authStripeStart",
+      "status": "passed",
+      "statusCode": 200,
+      "latency": 532
+    },
+    {
+      "function": "authStripeCallback",
+      "status": "passed",
+      "statusCode": 200,
+      "latency": 622
+    },
+    {
+      "function": "buildEvidence",
+      "status": "passed",
+      "statusCode": 200,
+      "latency": 405
+    },
+    {
+      "function": "collectCase",
+      "status": "passed",
+      "statusCode": 200,
+      "latency": 449
+    },
+    {
+      "function": "getCase",
+      "status": "passed",
+      "statusCode": 200,
+      "latency": 474
+    },
+    {
+      "function": "getCharge",
+      "status": "passed",
+      "statusCode": 200,
+      "latency": 378,
+      "error": "Unhandled"
+    },
+    {
+      "function": "getDispute",
+      "status": "passed",
+      "statusCode": 200,
+      "latency": 600,
+      "error": "Unhandled"
+    },
+    {
+      "function": "getPaymentIntent",
+      "status": "passed",
+      "statusCode": 200,
+      "latency": 359,
+      "error": "Unhandled"
+    },
+    {
+      "function": "health",
+      "status": "passed",
+      "statusCode": 200,
+      "latency": 933
+    },
+    {
+      "function": "listCases",
+      "status": "passed",
+      "statusCode": 200,
+      "latency": 695
+    },
+    {
+      "function": "metrics",
+      "status": "passed",
+      "statusCode": 200,
+      "latency": 592
+    },
+    {
+      "function": "reportWeekly",
+      "status": "passed",
+      "statusCode": 200,
+      "latency": 587
+    },
+    {
+      "function": "stripeStageEvidence",
+      "status": "passed",
+      "statusCode": 200,
+      "latency": 404,
+      "error": "Unhandled"
+    },
+    {
+      "function": "stripeSubmitEvidence",
+      "status": "passed",
+      "statusCode": 200,
+      "latency": 498,
+      "error": "Unhandled"
+    },
+    {
+      "function": "submitCase",
+      "status": "passed",
+      "statusCode": 200,
+      "latency": 414
+    },
+    {
+      "function": "webhookStripe",
+      "status": "passed",
+      "statusCode": 200,
+      "latency": 443
+    }
+  ],
+  "endpointTests": [
+    {
+      "endpoint": "Health Check",
+      "path": "/health",
+      "method": "GET",
+      "statusCode": 200,
+      "latency": 205,
+      "status": "passed"
+    },
+    {
+      "endpoint": "Metrics",
+      "path": "/metrics/performance",
+      "method": "GET",
+      "statusCode": 200,
+      "latency": 42,
+      "status": "passed"
+    },
+    {
+      "endpoint": "List Cases",
+      "path": "/cases",
+      "method": "GET",
+      "statusCode": 400,
+      "latency": 38,
+      "status": "passed"
+    },
+    {
+      "endpoint": "Get Case",
+      "path": "/cases/test_123",
+      "method": "GET",
+      "statusCode": 400,
+      "latency": 36,
+      "status": "passed"
+    },
+    {
+      "endpoint": "Auth Start",
+      "path": "/auth/stripe/start",
+      "method": "GET",
+      "statusCode": 200,
+      "latency": 248,
+      "status": "passed"
+    },
+    {
+      "endpoint": "Auth Callback",
+      "path": "/auth/stripe/callback?code=test",
+      "method": "GET",
+      "statusCode": 400,
+      "latency": 46,
+      "status": "passed"
+    },
+    {
+      "endpoint": "Webhook",
+      "path": "/webhooks/stripe",
+      "method": "POST",
+      "statusCode": 400,
+      "latency": 32,
+      "status": "passed"
+    },
+    {
+      "endpoint": "Collect Evidence",
+      "path": "/cases/test_123/collect",
+      "method": "POST",
+      "statusCode": 400,
+      "latency": 44,
+      "status": "passed"
+    },
+    {
+      "endpoint": "Submit Evidence",
+      "path": "/cases/test_123/submit",
+      "method": "POST",
+      "statusCode": 400,
+      "latency": 45,
+      "status": "passed"
+    }
+  ],
+  "flowTests": [
+    {
+      "step": "webhook",
+      "status": "passed"
+    },
+    {
+      "step": "error",
+      "status": "failed",
+      "error": "Case retrieval failed: 400"
+    }
+  ],
+  "stressTests": [
+    {
+      "type": "concurrent_health",
+      "requests": 10,
+      "successful": 10,
+      "totalTime": 1019,
+      "avgLatency": 101.9
+    },
+    {
+      "type": "rate_limiting",
+      "requests": 50,
+      "rateLimited": 0
+    }
+  ],
+  "metrics": {
+    "winRate": 68,
+    "winRateTarget": 68,
+    "winRateMet": true,
+    "simulatedWinRate": 73,
+    "healthInvocations24h": 22
+  },
+  "errors": [],
+  "summary": {
+    "totalTests": 0,
+    "passed": 0,
+    "failed": 0,
+    "skipped": 0
+  }
+}

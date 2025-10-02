@@ -1,0 +1,53 @@
+{
+  "id": "com.stripedshield.dispute-automation",
+  "version": "1.0.0",
+  "name": "StripedShield - Win 68% of Disputes",
+  "icon": "./icon.png",
+  "display_name": "StripedShield",
+  "distribution_type": "private",
+  "stripe_api_access_type": "oauth",
+  "ui_extension": {
+    "views": [
+      {
+        "viewport": "stripe.dashboard.home.overview",
+        "component": "Dashboard"
+      },
+      {
+        "viewport": "stripe.dashboard.dispute.detail",
+        "component": "DisputeDetail"
+      }
+    ],
+    "content_security_policy": {
+      "connect-src": [
+        "https://ket0g0lurh.execute-api.us-east-1.amazonaws.com"
+      ],
+      "purpose": "Connect to StripedShield backend API for dispute processing"
+    }
+  },
+  "permissions": [
+    {
+      "permission": "dispute_read",
+      "purpose": "Read dispute information to analyze win probability"
+    },
+    {
+      "permission": "dispute_write",
+      "purpose": "Submit AI-generated evidence to win disputes"
+    },
+    {
+      "permission": "charge_read",
+      "purpose": "Read charge data for CE3.0 detection"
+    },
+    {
+      "permission": "customer_read",
+      "purpose": "Read customer data for evidence generation"
+    },
+    {
+      "permission": "payment_intent_read",
+      "purpose": "Analyze payment patterns for fraud detection"
+    }
+  ],
+  "post_install_action": {
+    "type": "redirect",
+    "url": "https://stripedshield-founders-1755231149.netlify.app/welcome"
+  }
+}

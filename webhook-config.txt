@@ -1,0 +1,3 @@
+WEBHOOK_ID=we_1RvpKYDkPJe82O0qDYDvxHUp
+WEBHOOK_SECRET=whsec_UEPThrnDgkClCsthDL81jL5KhGSn4sfr
+WEBHOOK_URL=https://0mctcvl8sg.execute-api.us-east-1.amazonaws.com/webhooks/stripe

@@ -1,0 +1,216 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: StripedShield CloudWatch Alarms for Monitoring
+
+Parameters:
+  ServiceName:
+    Type: String
+    Default: chargeback-autopilot-stripe
+  Stage:
+    Type: String
+    Default: prod
+  ApiId:
+    Type: String
+    Description: API Gateway ID
+    Default: ket0g0lurh
+  SNSTopic:
+    Type: String
+    Description: SNS Topic ARN for alarm notifications (optional)
+    Default: ""
+
+Resources:
+  HealthErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ServiceName}-${Stage}-health-errors'
+      AlarmDescription: Alert when health endpoint has errors
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Dimensions:
+        - Name: FunctionName
+          Value: !Sub '${ServiceName}-${Stage}-health'
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !If [HasSNSTopic, !Ref SNSTopic, !Ref 'AWS::NoValue']
+  
+  ColdStartAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ServiceName}-${Stage}-cold-starts'
+      AlarmDescription: Alert when Lambda cold starts exceed 3 seconds
+      MetricName: Duration
+      Namespace: AWS/Lambda
+      Dimensions:
+        - Name: FunctionName
+          Value: !Sub '${ServiceName}-${Stage}-buildEvidence'
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 3000
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !If [HasSNSTopic, !Ref SNSTopic, !Ref 'AWS::NoValue']
+  
+  APIGateway5XXAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ServiceName}-${Stage}-api-5xx-errors'
+      AlarmDescription: Alert on API Gateway 5XX errors
+      MetricName: 5XXError
+      Namespace: AWS/ApiGateway
+      Dimensions:
+        - Name: ApiId
+          Value: !Ref ApiId
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 5
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !If [HasSNSTopic, !Ref SNSTopic, !Ref 'AWS::NoValue']
+  
+  APIGateway4XXAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ServiceName}-${Stage}-api-4xx-errors'
+      AlarmDescription: Alert on excessive API Gateway 4XX errors
+      MetricName: 4XXError
+      Namespace: AWS/ApiGateway
+      Dimensions:
+        - Name: ApiId
+          Value: !Ref ApiId
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 100
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !If [HasSNSTopic, !Ref SNSTopic, !Ref 'AWS::NoValue']
+  
+  DynamoDBThrottleAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ServiceName}-${Stage}-dynamodb-throttles'
+      AlarmDescription: Alert on DynamoDB throttling
+      MetricName: ConsumedReadCapacityUnits
+      Namespace: AWS/DynamoDB
+      Dimensions:
+        - Name: TableName
+          Value: !Sub '${ServiceName}-${Stage}-CasesTable'
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 240
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !If [HasSNSTopic, !Ref SNSTopic, !Ref 'AWS::NoValue']
+  
+  WebhookFailureAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ServiceName}-${Stage}-webhook-failures'
+      AlarmDescription: Alert when webhook processing fails
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Dimensions:
+        - Name: FunctionName
+          Value: !Sub '${ServiceName}-${Stage}-webhookStripe'
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 5
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !If [HasSNSTopic, !Ref SNSTopic, !Ref 'AWS::NoValue']
+  
+  EvidenceSubmissionFailureAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ServiceName}-${Stage}-evidence-submission-failures'
+      AlarmDescription: Alert when evidence submission fails
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Dimensions:
+        - Name: FunctionName
+          Value: !Sub '${ServiceName}-${Stage}-submitCase'
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 3
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !If [HasSNSTopic, !Ref SNSTopic, !Ref 'AWS::NoValue']
+  
+  HighResponseTimeAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ServiceName}-${Stage}-high-response-time'
+      AlarmDescription: Alert when API response time exceeds 1 second
+      MetricName: Duration
+      Namespace: AWS/Lambda
+      Dimensions:
+        - Name: FunctionName
+          Value: !Sub '${ServiceName}-${Stage}-listCases'
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 1000
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !If [HasSNSTopic, !Ref SNSTopic, !Ref 'AWS::NoValue']
+  
+  AIAnalysisFailureAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ServiceName}-${Stage}-ai-analysis-failures'
+      AlarmDescription: Alert when AI dispute analysis fails
+      MetricName: ai_error
+      Namespace: StripeAutopilot/AI
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 10
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !If [HasSNSTopic, !Ref SNSTopic, !Ref 'AWS::NoValue']
+  
+  LambdaConcurrentExecutionsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ServiceName}-${Stage}-lambda-concurrent-executions'
+      AlarmDescription: Alert when Lambda concurrent executions are high
+      MetricName: ConcurrentExecutions
+      Namespace: AWS/Lambda
+      Dimensions:
+        - Name: FunctionName
+          Value: !Sub '${ServiceName}-${Stage}-webhookStripe'
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 2
+      Threshold: 50
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !If [HasSNSTopic, !Ref SNSTopic, !Ref 'AWS::NoValue']
+
+Conditions:
+  HasSNSTopic: !Not [!Equals [!Ref SNSTopic, ""]]
+
+Outputs:
+  AlarmCount:
+    Description: Number of alarms created
+    Value: 10
+    Export:
+      Name: !Sub '${ServiceName}-${Stage}-alarm-count'

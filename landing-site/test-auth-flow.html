@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Auth Flow - ULTRATHINK</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center">
+    
+    <div class="bg-white rounded-lg shadow-lg p-8 max-w-2xl w-full">
+        <h1 class="text-2xl font-bold mb-6">🔐 Test Authentication Flow</h1>
+        
+        <div class="space-y-4">
+            <div class="p-4 bg-blue-50 rounded">
+                <h3 class="font-bold mb-2">Current Status:</h3>
+                <p id="status" class="text-sm">Checking authentication...</p>
+            </div>
+            
+            <div class="p-4 bg-gray-50 rounded">
+                <h3 class="font-bold mb-2">Test Steps:</h3>
+                <ol class="list-decimal list-inside space-y-2 text-sm">
+                    <li>Click "Test Login Flow" to create a test account</li>
+                    <li>System will automatically log in</li>
+                    <li>Verify dashboard access works</li>
+                    <li>Test logout functionality</li>
+                </ol>
+            </div>
+            
+            <div class="space-y-2">
+                <button onclick="testLoginFlow()" 
+                        class="w-full bg-purple-600 text-white py-2 rounded hover:bg-purple-700">
+                    Test Login Flow
+                </button>
+                
+                <button onclick="checkCurrentUser()" 
+                        class="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700">
+                    Check Current User
+                </button>
+                
+                <button onclick="testDashboardAccess()" 
+                        class="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700">
+                    Test Dashboard Access
+                </button>
+                
+                <button onclick="testLogout()" 
+                        class="w-full bg-red-600 text-white py-2 rounded hover:bg-red-700">
+                    Test Logout
+                </button>
+            </div>
+        </div>
+        
+        <div id="results" class="mt-6 space-y-2"></div>
+    </div>
+    
+    <!-- Firebase SDK v9 (Modular) -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { 
+            getAuth, 
+            signInWithEmailAndPassword,
+            createUserWithEmailAndPassword,
+            onAuthStateChanged,
+            signOut
+        } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+        
+        // Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyBGemDqwlwE4v0tZ7RXttJsW9l_0YrtBNA",
+            authDomain: "stripecharge-b27a6.firebaseapp.com",
+            projectId: "stripecharge-b27a6",
+            storageBucket: "stripecharge-b27a6.firebasestorage.app",
+            messagingSenderId: "573857361404",
+            appId: "1:573857361404:web:50dab6d2b28c441cae5679",
+            measurementId: "G-27XBNSG2Z9"
+        };
+        
+        let auth;
+        const statusDiv = document.getElementById('status');
+        const resultsDiv = document.getElementById('results');
+        
+        // Test credentials
+        const testEmail = `test${Date.now()}@stripedshield.com`;
+        const testPassword = 'Test123!@#';
+        
+        function addResult(message, type = 'info') {
+            const colors = {
+                success: 'bg-green-100 text-green-800',
+                error: 'bg-red-100 text-red-800',
+                warning: 'bg-yellow-100 text-yellow-800',
+                info: 'bg-blue-100 text-blue-800'
+            };
+            
+            const timestamp = new Date().toLocaleTimeString();
+            resultsDiv.innerHTML += `
+                <div class="p-3 rounded ${colors[type]}">
+                    <span class="text-xs opacity-50">[${timestamp}]</span>
+                    <p class="text-sm mt-1">${message}</p>
+                </div>
+            `;
+        }
+        
+        // Initialize Firebase
+        try {
+            const app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            
+            // Listen for auth state changes
+            onAuthStateChanged(auth, (user) => {
+                if (user) {
+                    statusDiv.innerHTML = `✅ Logged in as: ${user.email}`;
+                    addResult(`Auth state changed: User logged in (${user.email})`, 'success');
+                } else {
+                    statusDiv.innerHTML = '🔓 Not logged in';
+                    addResult('Auth state changed: No user', 'warning');
+                }
+            });
+            
+            addResult('✅ Firebase initialized successfully', 'success');
+        } catch (error) {
+            addResult(`❌ Firebase initialization failed: ${error.message}`, 'error');
+        }
+        
+        // Test login flow
+        window.testLoginFlow = async function() {
+            addResult('Starting login flow test...', 'info');
+            
+            try {
+                // Step 1: Create account
+                addResult(`Creating test account: ${testEmail}`, 'info');
+                const userCredential = await createUserWithEmailAndPassword(auth, testEmail, testPassword);
+                addResult('✅ Account created successfully', 'success');
+                
+                // Step 2: Sign out
+                await signOut(auth);
+                addResult('✅ Signed out successfully', 'success');
+                
+                // Step 3: Sign in again
+                addResult('Attempting to sign in...', 'info');
+                const signInResult = await signInWithEmailAndPassword(auth, testEmail, testPassword);
+                addResult('✅ Signed in successfully', 'success');
+                
+                // Step 4: Verify user
+                const currentUser = auth.currentUser;
+                if (currentUser) {
+                    addResult(`✅ Current user verified: ${currentUser.email}`, 'success');
+                    addResult(`User ID: ${currentUser.uid}`, 'info');
+                } else {
+                    addResult('⚠️ No current user after sign in', 'warning');
+                }
+                
+                addResult('✅ Login flow test completed successfully!', 'success');
+                
+            } catch (error) {
+                addResult(`❌ Login flow test failed: ${error.code} - ${error.message}`, 'error');
+            }
+        }
+        
+        // Check current user
+        window.checkCurrentUser = function() {
+            const user = auth.currentUser;
+            if (user) {
+                addResult(`✅ Current user: ${user.email}`, 'success');
+                addResult(`UID: ${user.uid}`, 'info');
+                addResult(`Email verified: ${user.emailVerified}`, 'info');
+                addResult(`Created: ${user.metadata.creationTime}`, 'info');
+                addResult(`Last sign in: ${user.metadata.lastSignInTime}`, 'info');
+            } else {
+                addResult('No user currently signed in', 'warning');
+            }
+        }
+        
+        // Test dashboard access
+        window.testDashboardAccess = function() {
+            const user = auth.currentUser;
+            if (user) {
+                addResult('✅ User authenticated, opening dashboard...', 'success');
+                window.open('/dashboard-protected.html', '_blank');
+            } else {
+                addResult('⚠️ No user logged in, cannot access dashboard', 'warning');
+            }
+        }
+        
+        // Test logout
+        window.testLogout = async function() {
+            try {
+                await signOut(auth);
+                addResult('✅ Logged out successfully', 'success');
+            } catch (error) {
+                addResult(`❌ Logout failed: ${error.message}`, 'error');
+            }
+        }
+        
+        console.log('🚀 Auth flow test page ready!');
+    </script>
+</body>
+</html>

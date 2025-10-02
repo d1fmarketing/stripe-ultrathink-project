@@ -1,0 +1,29 @@
+openapi: 3.1.0
+info: { title: Chargeback Evidence Autopilot (Stripe-only), version: 0.2.0 }
+servers: [ { url: https://api.example.com } ]
+paths:
+  /auth/stripe/start:
+    get:
+      summary: Build Stripe OAuth URL
+      responses: { '200': { description: OK } }
+  /auth/stripe/callback:
+    get:
+      summary: Stripe OAuth redirect handler
+      parameters: [ { name: code, in: query, required: true, schema: { type: string } }, { name: state, in: query, required: true, schema: { type: string } } ]
+      responses: { '200': { description: Connected } }
+  /webhooks/stripe:
+    post:
+      summary: Stripe (Connect) webhook
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses: { '200': { description: OK } }
+  /cases:
+    get:
+      summary: List disputes for current merchant
+      parameters: [ { name: status, in: query, schema: { type: string } }, { name: merchant, in: query, required: true, schema: { type: string } } ]
+      responses: { '200': { description: OK } }
+  /cases/{id}:
+    get: { summary: Get one dispute, parameters: [ { name: id, in: path, required: true, schema: { type: string } }, { name: merchant, in: query, required: true, schema: { type: string } } ], responses: { '200': { description: OK } } }
+  /cases/{id}/collect:
+    post: { summary: Force recollect evidence, parameters: [ { name: id, in: path, required: true, schema: { type: string } }, { name: merchant, in: query, required: true, schema: { type: string } } ], responses: { '202': { description: Started } } }
+  /cases/{id}/submit:
+    post: { summary: Submit now (override), parameters: [ { name: id, in: path, required: true, schema: { type: string } }, { name: merchant, in: query, required: true, schema: { type: string } } ], responses: { '200': { description: Submitted } } }

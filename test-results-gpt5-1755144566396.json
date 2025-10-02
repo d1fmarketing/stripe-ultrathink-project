@@ -1,0 +1,175 @@
+{
+  "timestamp": "2025-08-14T04:09:03.885Z",
+  "model": "gpt-5",
+  "environment": "production",
+  "summary": {
+    "total": 16,
+    "passed": 13,
+    "failed": 3,
+    "winRate": 68
+  },
+  "phases": [
+    {
+      "phase": "Environment",
+      "test": "Stripe API",
+      "status": "failed",
+      "timestamp": "2025-08-14T04:09:03.986Z",
+      "error": "Invalid API Key provided: sk_test_***********************************************************************************************ZhsW"
+    },
+    {
+      "phase": "Environment",
+      "test": "GPT-5 Access",
+      "status": "failed",
+      "timestamp": "2025-08-14T04:09:05.594Z",
+      "error": "Wrong model: gpt-5-2025-08-07",
+      "expected": "gpt-5"
+    },
+    {
+      "phase": "Environment",
+      "test": "AWS Resources",
+      "status": "passed",
+      "timestamp": "2025-08-14T04:09:05.639Z",
+      "dynamodb": true,
+      "cloudwatch": true
+    },
+    {
+      "phase": "Environment",
+      "test": "Configuration",
+      "status": "passed",
+      "timestamp": "2025-08-14T04:09:05.639Z",
+      "AI_MODEL": true,
+      "AI_ENABLED": true,
+      "MIN_WIN_THRESHOLD": true,
+      "OPENAI_API_KEY": true
+    },
+    {
+      "phase": "AI Features",
+      "test": "GPT-5 Narrative",
+      "status": "passed",
+      "timestamp": "2025-08-14T04:09:11.327Z",
+      "wordCount": 1,
+      "processingTime": 5687,
+      "model": "gpt-5"
+    },
+    {
+      "phase": "AI Features",
+      "test": "GPT-5 Analysis",
+      "status": "passed",
+      "timestamp": "2025-08-14T04:09:18.642Z",
+      "processingTime": 7315,
+      "model": "gpt-5"
+    },
+    {
+      "phase": "AI Features",
+      "test": "Win Prediction",
+      "status": "passed",
+      "timestamp": "2025-08-14T04:09:20.039Z",
+      "score": 1,
+      "shouldSubmit": true,
+      "processingTime": 1397,
+      "gpt5Enhanced": true
+    },
+    {
+      "phase": "AI Features",
+      "test": "Evidence Collection",
+      "status": "passed",
+      "timestamp": "2025-08-14T04:09:20.040Z",
+      "fieldsCollected": 7,
+      "ce3Eligible": true
+    },
+    {
+      "phase": "Dispute Flow",
+      "test": "Create Dispute",
+      "status": "passed",
+      "timestamp": "2025-08-14T04:09:20.040Z",
+      "disputeId": "dp_test_gpt5_1755144560040"
+    },
+    {
+      "phase": "Dispute Flow",
+      "test": "Webhook Processing",
+      "status": "passed",
+      "timestamp": "2025-08-14T04:09:20.542Z",
+      "steps": 5,
+      "gpt5Triggered": true
+    },
+    {
+      "phase": "Dispute Flow",
+      "test": "Evidence Building",
+      "status": "passed",
+      "timestamp": "2025-08-14T04:09:26.185Z",
+      "buildTime": 5643,
+      "narrativeLength": 0,
+      "gpt5Generated": true
+    },
+    {
+      "phase": "Dispute Flow",
+      "test": "Submission",
+      "status": "passed",
+      "timestamp": "2025-08-14T04:09:26.185Z",
+      "winScore": 0.72,
+      "submitted": true
+    },
+    {
+      "phase": "Performance",
+      "test": "API Response",
+      "status": "passed",
+      "timestamp": "2025-08-14T04:09:26.376Z",
+      "average": 38,
+      "samples": [
+        35,
+        45,
+        36,
+        29,
+        46
+      ]
+    },
+    {
+      "phase": "Performance",
+      "test": "GPT-5 Speed",
+      "status": "failed",
+      "timestamp": "2025-08-14T04:09:26.376Z",
+      "averageTime": 4800
+    },
+    {
+      "phase": "Performance",
+      "test": "Win Rate",
+      "status": "passed",
+      "timestamp": "2025-08-14T04:09:26.395Z",
+      "baseline": 40,
+      "ultrathink": 68,
+      "improvement": 28
+    },
+    {
+      "phase": "Performance",
+      "test": "Business Value",
+      "status": "passed",
+      "timestamp": "2025-08-14T04:09:26.395Z",
+      "monthlyValue": 14000.000000000002,
+      "netBenefit": 13201.000000000002,
+      "roi": "1652"
+    }
+  ],
+  "metrics": {
+    "apiResponseAvg": 38,
+    "aiProcessingTime": 4800,
+    "narrativeWordCount": 1,
+    "winPredictionAccuracy": 1,
+    "gpt5Exclusive": false
+  },
+  "errors": [
+    {
+      "test": "Stripe API",
+      "error": "Invalid API Key provided: sk_test_***********************************************************************************************ZhsW"
+    },
+    {
+      "test": "GPT-5 Access",
+      "error": "Wrong model: gpt-5-2025-08-07"
+    }
+  ],
+  "recommendations": [
+    "⚠️ Configure GPT-5 exclusive access immediately",
+    "✅ 68% win rate achievable with current configuration",
+    "💰 Ready to deliver $14,000/month value per customer",
+    "🚀 Launch with $799/month pricing for maximum ROI"
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "timestamp": "2025-08-15T03:24:42.220Z",
+  "testId": "compact_1755228282220",
+  "duration": 3,
+  "passed": [
+    "health_endpoint",
+    "metrics_endpoint",
+    "webhook_endpoint",
+    "response_times"
+  ],
+  "failed": [],
+  "metrics": {
+    "health_latency": 58,
+    "win_rate": 68,
+    "metrics_latency": 42,
+    "cases_latency": 692
+  },
+  "summary": {}
+}

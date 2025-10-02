@@ -1,0 +1,216 @@
+name: DisputeProcessingWorkflow
+comment: Automated dispute evidence collection and submission workflow
+startAt: GetDispute
+states:
+  GetDispute:
+    Type: Task
+    Resource: arn:aws:states:::lambda:invoke
+    Parameters:
+      FunctionName: ${self:service}-${sls:stage}-getDispute
+      Payload:
+        dispute_id.$: $.dispute_id
+        merchant.$: $.merchant
+    ResultPath: $.dispute
+    Next: CheckDisputeStatus
+    Retry:
+      - ErrorEquals: ["States.ALL"]
+        IntervalSeconds: 2
+        MaxAttempts: 3
+        BackoffRate: 2
+    Catch:
+      - ErrorEquals: ["States.ALL"]
+        Next: HandleError
+        ResultPath: $.error
+  
+  CheckDisputeStatus:
+    Type: Choice
+    Choices:
+      - Variable: $.dispute.status
+        StringEquals: needs_response
+        Next: GetCharge
+      - Variable: $.dispute.status
+        StringEquals: warning_needs_response
+        Next: GetCharge
+      - Variable: $.dispute.status
+        StringEquals: warning_under_review
+        Next: GetCharge
+    Default: SkipProcessing
+  
+  GetCharge:
+    Type: Task
+    Resource: arn:aws:states:::lambda:invoke
+    Parameters:
+      FunctionName: ${self:service}-${sls:stage}-getCharge
+      Payload:
+        charge_id.$: $.dispute.charge
+        merchant.$: $.merchant
+    ResultPath: $.charge
+    Next: GetPaymentIntent
+    Retry:
+      - ErrorEquals: ["States.ALL"]
+        IntervalSeconds: 2
+        MaxAttempts: 3
+        BackoffRate: 2
+    Catch:
+      - ErrorEquals: ["States.ALL"]
+        Next: HandleError
+        ResultPath: $.error
+  
+  GetPaymentIntent:
+    Type: Task
+    Resource: arn:aws:states:::lambda:invoke
+    Parameters:
+      FunctionName: ${self:service}-${sls:stage}-getPaymentIntent
+      Payload:
+        payment_intent_id.$: $.dispute.payment_intent
+        merchant.$: $.merchant
+    ResultPath: $.payment_intent
+    Next: BuildEvidence
+    Retry:
+      - ErrorEquals: ["States.ALL"]
+        IntervalSeconds: 2
+        MaxAttempts: 3
+        BackoffRate: 2
+    Catch:
+      - ErrorEquals: ["Lambda.ServiceException", "Lambda.AWSLambdaException"]
+        Next: BuildEvidence
+        ResultPath: $.payment_intent_error
+  
+  BuildEvidence:
+    Type: Task
+    Resource: arn:aws:states:::lambda:invoke
+    Parameters:
+      FunctionName: ${self:service}-${sls:stage}-buildEvidence
+      Payload:
+        dispute.$: $.dispute
+        charge.$: $.charge
+        payment_intent.$: $.payment_intent
+        merchant.$: $.merchant
+        aiAnalysis.$: $.aiAnalysis
+    ResultPath: $.evidence_result
+    Next: CheckAutoSubmit
+    Retry:
+      - ErrorEquals: ["States.ALL"]
+        IntervalSeconds: 5
+        MaxAttempts: 3
+        BackoffRate: 2
+    Catch:
+      - ErrorEquals: ["States.ALL"]
+        Next: HandleError
+        ResultPath: $.error
+  
+  CheckAutoSubmit:
+    Type: Choice
+    Choices:
+      - Variable: $.merchant.settings.autoSubmit
+        BooleanEquals: true
+        Next: StageEvidence
+      - Variable: $.evidence_result.ce3Eligible
+        BooleanEquals: true
+        Next: StageEvidence
+      - Variable: $.evidence_result.winProbability
+        NumericGreaterThan: 0.7
+        Next: StageEvidence
+    Default: ManualReview
+  
+  StageEvidence:
+    Type: Task
+    Resource: arn:aws:states:::lambda:invoke
+    Parameters:
+      FunctionName: ${self:service}-${sls:stage}-stripeStageEvidence
+      Payload:
+        dispute.$: $.dispute
+        evidence.$: $.evidence_result.evidence
+        merchant.$: $.merchant
+    ResultPath: $.stage_result
+    Next: CheckSubmitDecision
+    Retry:
+      - ErrorEquals: ["States.ALL"]
+        IntervalSeconds: 5
+        MaxAttempts: 3
+        BackoffRate: 2
+    Catch:
+      - ErrorEquals: ["States.ALL"]
+        Next: HandleError
+        ResultPath: $.error
+  
+  CheckSubmitDecision:
+    Type: Choice
+    Choices:
+      - Variable: $.stage_result.staged
+        BooleanEquals: true
+        Next: SubmitEvidence
+    Default: ManualReview
+  
+  SubmitEvidence:
+    Type: Task
+    Resource: arn:aws:states:::lambda:invoke
+    Parameters:
+      FunctionName: ${self:service}-${sls:stage}-stripeSubmitEvidence
+      Payload:
+        dispute.$: $.dispute
+        merchant.$: $.merchant
+    ResultPath: $.submit_result
+    Next: LogSuccess
+    Retry:
+      - ErrorEquals: ["States.TaskFailed"]
+        IntervalSeconds: 10
+        MaxAttempts: 2
+        BackoffRate: 2
+    Catch:
+      - ErrorEquals: ["States.ALL"]
+        Next: HandleError
+        ResultPath: $.error
+  
+  LogSuccess:
+    Type: Task
+    Resource: arn:aws:states:::lambda:invoke
+    Parameters:
+      FunctionName: ${self:service}-${sls:stage}-metrics
+      Payload:
+        action: dispute_submitted
+        dispute_id.$: $.dispute.id
+        merchant_id.$: $.merchant.stripe_account_id
+        ce3_eligible.$: $.evidence_result.ce3Eligible
+        win_probability.$: $.evidence_result.winProbability
+        ai_enhanced.$: $.evidence_result.aiEnhanced
+        timestamp.$: $$.State.EnteredTime
+    ResultPath: $.log_result
+    End: true
+    Catch:
+      - ErrorEquals: ["States.ALL"]
+        Next: Success
+  
+  Success:
+    Type: Succeed
+  
+  SkipProcessing:
+    Type: Pass
+    Result: "Dispute not in actionable status"
+    End: true
+  
+  ManualReview:
+    Type: Pass
+    Result: "Evidence staged for manual review"
+    End: true
+  
+  HandleError:
+    Type: Task
+    Resource: arn:aws:states:::lambda:invoke
+    Parameters:
+      FunctionName: ${self:service}-${sls:stage}-metrics
+      Payload:
+        action: dispute_error
+        dispute_id.$: $.dispute_id
+        error.$: $.error
+        timestamp.$: $$.State.EnteredTime
+    ResultPath: $.error_logged
+    Next: Fail
+    Catch:
+      - ErrorEquals: ["States.ALL"]
+        Next: Fail
+  
+  Fail:
+    Type: Fail
+    Error: DisputeProcessingFailed
+    Cause: Failed to process dispute evidence

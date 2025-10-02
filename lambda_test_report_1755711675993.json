@@ -1,0 +1,238 @@
+{
+  "timestamp": "2025-08-20T17:41:15.993Z",
+  "summary": {
+    "total": 26,
+    "working": 19,
+    "broken": 7
+  },
+  "results": [
+    {
+      "function": "health",
+      "fullName": "chargeback-autopilot-stripe-prod-health",
+      "success": true,
+      "statusCode": 200,
+      "response": "{\"statusCode\":200,\"headers\":{\"Content-Type\":\"application/json\",\"Cache-Control\":\"no-cache\"},\"body\":\"{\\\"ok\\\":true,\\\"degraded\\\":true,\\\"checks\\\":{\\\"redis\\\":{\\\"ok\\\":false,\\\"error\\\":\\\"Redis is already connecting/connected\\\"},\\\"dynamo\\\":{\\\"ok\\\":false,\\\"error\\\":\\\"1 validation error detected: Value null at 'tableName' failed to satisfy constraint: Member must not be null\\\"}},\\\"service\\\":\\\"StripedShield\\\",\\\"version\\\":\\\"2.0.1\\\",\\\"ts\\\":\\\"2025-08-20T17:40:36.021Z\\\"}\"}",
+      "error": null,
+      "executionTime": 0
+    },
+    {
+      "function": "debugRedis",
+      "fullName": "chargeback-autopilot-stripe-prod-debugRedis",
+      "success": true,
+      "statusCode": 503,
+      "response": "{\"statusCode\":503,\"headers\":{\"Content-Type\":\"application/json\",\"Cache-Control\":\"no-cache\"},\"body\":\"{\\n  \\\"status\\\": \\\"error\\\",\\n  \\\"error\\\": \\\"Connection is closed.\\\",\\n  \\\"redisUrl\\\": \\\"not configured\\\",\\n  \\\"timestamp\\\": \\\"2025-08-20T17:40:37.012Z\\\"\\n}\"}",
+      "error": null,
+      "executionTime": 0
+    },
+    {
+      "function": "metrics",
+      "fullName": "chargeback-autopilot-stripe-prod-metrics",
+      "success": true,
+      "statusCode": 200,
+      "response": "{\"statusCode\":200,\"headers\":{\"Content-Type\":\"application/json\",\"Cache-Control\":\"no-cache\"},\"body\":\"{\\\"timestamp\\\":\\\"2025-08-20T17:40:38.548Z\\\",\\\"degraded\\\":true,\\\"error\\\":\\\"Unable to fetch complete metrics\\\",\\\"message\\\":\\\"Connection is closed.\\\",\\\"partial\\\":{\\\"winRate\\\":{\\\"current\\\":68,\\\"definition\\\":\\\"Default value - Redis unavailable\\\"}}}\"}",
+      "error": null,
+      "executionTime": 0
+    },
+    {
+      "function": "stats",
+      "fullName": "chargeback-autopilot-stripe-prod-stats",
+      "success": true,
+      "statusCode": 200,
+      "response": "{\"statusCode\":200,\"headers\":{\"Content-Type\":\"application/json\",\"Access-Control-Allow-Origin\":\"*\",\"Access-Control-Allow-Headers\":\"Content-Type,Authorization\",\"Access-Control-Allow-Methods\":\"GET,OPTIONS\"},\"body\":\"{\\\"success\\\":true,\\\"data\\\":{\\\"winRate\\\":68,\\\"totalDisputes\\\":7,\\\"disputesWon\\\":0,\\\"disputesLost\\\":0,\\\"disputesPending\\\":7,\\\"averageResponseTime\\\":\\\"562ms\\\",\\\"ce30DetectionRate\\\":0,\\\"totalAmountRecovered\\\":0,\\\"averageDisputeAmount\\\":0,\\\"lastUpdated\\\":\\\"2025-08-20T17:40:40.449Z\\\",\\\"dataSource\\\":\\\"database\\\"},\\\"processingTime\\\":\\\"116ms\\\"}\"}",
+      "error": null,
+      "executionTime": 0
+    },
+    {
+      "function": "authLogin",
+      "fullName": "chargeback-autopilot-stripe-prod-authLogin",
+      "success": true,
+      "statusCode": 400,
+      "response": "{\"statusCode\":400,\"headers\":{\"Content-Type\":\"application/json\",\"Access-Control-Allow-Origin\":\"*\",\"Access-Control-Allow-Headers\":\"Content-Type,Authorization\",\"Access-Control-Allow-Methods\":\"POST,OPTIONS\"},\"body\":\"{\\\"success\\\":false,\\\"error\\\":\\\"Email is required\\\"}\"}",
+      "error": null,
+      "executionTime": 0
+    },
+    {
+      "function": "authStripeStart",
+      "fullName": "chargeback-autopilot-stripe-prod-authStripeStart",
+      "success": true,
+      "statusCode": 400,
+      "response": "{\"statusCode\":400,\"headers\":{\"Content-Type\":\"application/json\",\"Access-Control-Allow-Origin\":\"*\",\"Access-Control-Allow-Headers\":\"Authorization,Content-Type,X-Requested-With,X-Request-ID\",\"Access-Control-Allow-Methods\":\"GET,POST,PUT,DELETE,OPTIONS\",\"Access-Control-Allow-Credentials\":\"true\",\"X-Content-Type-Options\":\"nosniff\",\"X-Frame-Options\":\"DENY\",\"X-XSS-Protection\":\"1; mode=block\",\"Strict-Transport-Security\":\"max-age=31536000; includeSubDomains\",\"Content-Security-Policy\":\"default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://www.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://api.stripe.com https://*.firebaseio.com\",\"Referrer-Policy\":\"strict-origin-when-cross-origin\",\"Permissions-Policy\":\"accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=*, usb=()\"},\"body\":\"{\\\"error\\\":\\\"Stripe not configured\\\"}\"}",
+      "error": null,
+      "executionTime": 0
+    },
+    {
+      "function": "authStripeCallback",
+      "fullName": "chargeback-autopilot-stripe-prod-authStripeCallback",
+      "success": true,
+      "statusCode": 400,
+      "response": "{\"statusCode\":400,\"body\":\"missing code\"}",
+      "error": null,
+      "executionTime": 0
+    },
+    {
+      "function": "autoRefreshTokens",
+      "fullName": "chargeback-autopilot-stripe-prod-autoRefreshTokens",
+      "success": true,
+      "statusCode": 500,
+      "response": "{\"statusCode\":500,\"body\":\"{\\\"error\\\":\\\"1 validation error detected: Value null at 'tableName' failed to satisfy constraint: Member must not be null\\\"}\"}",
+      "error": null,
+      "executionTime": 0
+    },
+    {
+      "function": "buildEvidence",
+      "fullName": "chargeback-autopilot-stripe-prod-buildEvidence",
+      "success": false,
+      "statusCode": null,
+      "response": null,
+      "error": "Command failed: aws lambda invoke --function-name chargeback-autopilot-stripe-prod-buildEvidence --payload '{\"dispute_id\":\"dp_test123\",\"charge_id\":\"ch_test123\"}' /tmp/test-buildEvidence.json 2>&1\n",
+      "executionTime": 0
+    },
+    {
+      "function": "collectCase",
+      "fullName": "chargeback-autopilot-stripe-prod-collectCase",
+      "success": false,
+      "statusCode": null,
+      "response": null,
+      "error": "Command failed: aws lambda invoke --function-name chargeback-autopilot-stripe-prod-collectCase --payload '{\"dispute_id\":\"dp_test123\"}' /tmp/test-collectCase.json 2>&1\n",
+      "executionTime": 0
+    },
+    {
+      "function": "createCheckoutSession",
+      "fullName": "chargeback-autopilot-stripe-prod-createCheckoutSession",
+      "success": true,
+      "statusCode": 400,
+      "response": "{\"statusCode\":400,\"headers\":{\"Content-Type\":\"application/json\",\"Access-Control-Allow-Origin\":\"*\",\"Access-Control-Allow-Headers\":\"Authorization,Content-Type,X-Requested-With,X-Request-ID\",\"Access-Control-Allow-Methods\":\"GET,POST,PUT,DELETE,OPTIONS\",\"Access-Control-Allow-Credentials\":\"true\",\"X-Content-Type-Options\":\"nosniff\",\"X-Frame-Options\":\"DENY\",\"X-XSS-Protection\":\"1; mode=block\",\"Strict-Transport-Security\":\"max-age=31536000; includeSubDomains\",\"Content-Security-Policy\":\"default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://www.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://api.stripe.com https://*.firebaseio.com\",\"Referrer-Policy\":\"strict-origin-when-cross-origin\",\"Permissions-Policy\":\"accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=*, usb=()\"},\"body\":\"{\\\"error\\\":\\\"Email is required\\\"}\"}",
+      "error": null,
+      "executionTime": 0
+    },
+    {
+      "function": "disputes",
+      "fullName": "chargeback-autopilot-stripe-prod-disputes",
+      "success": true,
+      "statusCode": 401,
+      "response": "{\"statusCode\":401,\"body\":\"{\\\"error\\\":\\\"Unauthorized\\\"}\"}",
+      "error": null,
+      "executionTime": 0
+    },
+    {
+      "function": "getCase",
+      "fullName": "chargeback-autopilot-stripe-prod-getCase",
+      "success": false,
+      "statusCode": null,
+      "response": null,
+      "error": "Command failed: aws lambda invoke --function-name chargeback-autopilot-stripe-prod-getCase --payload '{\"case_id\":\"case_test123\"}' /tmp/test-getCase.json 2>&1\n",
+      "executionTime": 0
+    },
+    {
+      "function": "getCharge",
+      "fullName": "chargeback-autopilot-stripe-prod-getCharge",
+      "success": false,
+      "statusCode": null,
+      "response": null,
+      "error": "Command failed: aws lambda invoke --function-name chargeback-autopilot-stripe-prod-getCharge --payload '{\"charge_id\":\"ch_test123\"}' /tmp/test-getCharge.json 2>&1\n",
+      "executionTime": 0
+    },
+    {
+      "function": "getDispute",
+      "fullName": "chargeback-autopilot-stripe-prod-getDispute",
+      "success": false,
+      "statusCode": null,
+      "response": null,
+      "error": "Command failed: aws lambda invoke --function-name chargeback-autopilot-stripe-prod-getDispute --payload '{\"dispute_id\":\"dp_test123\"}' /tmp/test-getDispute.json 2>&1\n",
+      "executionTime": 0
+    },
+    {
+      "function": "getPaymentIntent",
+      "fullName": "chargeback-autopilot-stripe-prod-getPaymentIntent",
+      "success": true,
+      "response": "{\"errorType\":\"TypeError\",\"errorMessage\":\"Cannot read properties of undefined (reading 'stripe_account_id')\",\"trace\":[\"TypeError: Cannot read properties of undefined (reading 'stripe_account_id')\",\"    at Runtime.rh [as handler] (/var/task/getPaymentIntent.js:14:21717)\",\"    at Runtime.handleOnceNonStreaming (file:///var/runtime/index.mjs:1206:29)\"]}",
+      "error": null,
+      "executionTime": 1
+    },
+    {
+      "function": "getUserDisputes",
+      "fullName": "chargeback-autopilot-stripe-prod-getUserDisputes",
+      "success": false,
+      "statusCode": null,
+      "response": null,
+      "error": "Command failed: aws lambda invoke --function-name chargeback-autopilot-stripe-prod-getUserDisputes --payload '{\"user_id\":\"user_test123\"}' /tmp/test-getUserDisputes.json 2>&1\n",
+      "executionTime": 0
+    },
+    {
+      "function": "listCases",
+      "fullName": "chargeback-autopilot-stripe-prod-listCases",
+      "success": true,
+      "statusCode": 401,
+      "response": "{\"statusCode\":401,\"body\":\"{\\\"error\\\":\\\"Unauthorized\\\"}\"}",
+      "error": null,
+      "executionTime": 0
+    },
+    {
+      "function": "reportWeekly",
+      "fullName": "chargeback-autopilot-stripe-prod-reportWeekly",
+      "success": true,
+      "response": "{\"errorType\":\"ValidationException\",\"errorMessage\":\"1 validation error detected: Value null at 'tableName' failed to satisfy constraint: Member must not be null\",\"trace\":[\"ValidationException: 1 validation error detected: Value null at 'tableName' failed to satisfy constraint: Member must not be null\",\"    at throwDefaultError (/var/task/node_modules/@smithy/smithy-client/dist-cjs/index.js:388:20)\",\"    at /var/task/node_modules/@smithy/smithy-client/dist-cjs/index.js:397:5\",\"    at de_CommandError (/var/task/node_modules/@aws-sdk/client-dynamodb/dist-cjs/index.js:2359:14)\",\"    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\",\"    at async /var/task/node_modules/@smithy/middleware-serde/dist-cjs/index.js:36:20\",\"    at async /var/task/node_modules/@aws-sdk/lib-dynamodb/dist-cjs/index.js:173:30\",\"    at async /var/task/node_modules/@smithy/core/dist-cjs/index.js:193:18\",\"    at async /var/task/node_modules/@smithy/middleware-retry/dist-cjs/index.js:320:38\",\"    at async /var/task/node_modules/@aws-sdk/middleware-logger/dist-cjs/index.js:33:22\",\"    at async Runtime.F [as handler] (/var/task/reportWeekly.js:1:885)\"]}",
+      "error": null,
+      "executionTime": 0
+    },
+    {
+      "function": "retryCase",
+      "fullName": "chargeback-autopilot-stripe-prod-retryCase",
+      "success": true,
+      "statusCode": 401,
+      "response": "{\"statusCode\":401,\"body\":\"{\\\"error\\\":\\\"Unauthorized\\\"}\"}",
+      "error": null,
+      "executionTime": 0
+    },
+    {
+      "function": "stripeStageEvidence",
+      "fullName": "chargeback-autopilot-stripe-prod-stripeStageEvidence",
+      "success": true,
+      "response": "{\"errorType\":\"TypeError\",\"errorMessage\":\"Cannot read properties of undefined (reading 'id')\",\"trace\":[\"TypeError: Cannot read properties of undefined (reading 'id')\",\"    at Runtime.handler (/var/task/dist/handlers/stripeStageEvidence.js:7697:52)\",\"    at Runtime.handleOnceNonStreaming (file:///var/runtime/index.mjs:1206:29)\"]}",
+      "error": null,
+      "executionTime": 0
+    },
+    {
+      "function": "stripeSubmitEvidence",
+      "fullName": "chargeback-autopilot-stripe-prod-stripeSubmitEvidence",
+      "success": true,
+      "response": "{\"errorType\":\"TypeError\",\"errorMessage\":\"Cannot read properties of undefined (reading 'id')\",\"trace\":[\"TypeError: Cannot read properties of undefined (reading 'id')\",\"    at Runtime.handler (/var/task/dist/handlers/stripeSubmitEvidence.js:7697:52)\",\"    at Runtime.handleOnceNonStreaming (file:///var/runtime/index.mjs:1206:29)\"]}",
+      "error": null,
+      "executionTime": 0
+    },
+    {
+      "function": "submitCase",
+      "fullName": "chargeback-autopilot-stripe-prod-submitCase",
+      "success": true,
+      "statusCode": 401,
+      "response": "{\"statusCode\":401,\"body\":\"{\\\"error\\\":\\\"Unauthorized\\\"}\"}",
+      "error": null,
+      "executionTime": 0
+    },
+    {
+      "function": "subscriptionCancel",
+      "fullName": "chargeback-autopilot-stripe-prod-subscriptionCancel",
+      "success": true,
+      "response": "{\"errorType\":\"Runtime.HandlerNotFound\",\"errorMessage\":\"dist/handlers/subscriptionManager.handler is undefined or not exported\",\"trace\":[\"Runtime.HandlerNotFound: dist/handlers/subscriptionManager.handler is undefined or not exported\",\"    at UserFunction.js.module.exports.load (file:///var/runtime/index.mjs:1151:15)\",\"    at async start (file:///var/runtime/index.mjs:1335:23)\",\"    at async file:///var/runtime/index.mjs:1342:1\"]}",
+      "error": null,
+      "executionTime": 0
+    },
+    {
+      "function": "subscriptionStatus",
+      "fullName": "chargeback-autopilot-stripe-prod-subscriptionStatus",
+      "success": true,
+      "response": "{\"errorType\":\"Runtime.HandlerNotFound\",\"errorMessage\":\"dist/handlers/subscriptionManager.handler is undefined or not exported\",\"trace\":[\"Runtime.HandlerNotFound: dist/handlers/subscriptionManager.handler is undefined or not exported\",\"    at UserFunction.js.module.exports.load (file:///var/runtime/index.mjs:1151:15)\",\"    at async start (file:///var/runtime/index.mjs:1335:23)\",\"    at async file:///var/runtime/index.mjs:1342:1\"]}",
+      "error": null,
+      "executionTime": 0
+    },
+    {
+      "function": "webhookStripe",
+      "fullName": "chargeback-autopilot-stripe-prod-webhookStripe",
+      "success": false,
+      "statusCode": null,
+      "response": null,
+      "error": "Command failed: aws lambda invoke --function-name chargeback-autopilot-stripe-prod-webhookStripe --payload '{\"id\":\"evt_test123\",\"type\":\"charge.dispute.created\",\"data\":{\"object\":{\"id\":\"dp_test123\"}}}' /tmp/test-webhookStripe.json 2>&1\n",
+      "executionTime": 0
+    }
+  ]
+}

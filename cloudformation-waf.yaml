@@ -1,0 +1,134 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: StripedShield WAF Web ACL for API Protection
+
+Parameters:
+  ServiceName:
+    Type: String
+    Default: chargeback-autopilot-stripe
+  Stage:
+    Type: String
+    Default: prod
+  ApiGatewayArn:
+    Type: String
+    Description: ARN of the API Gateway to protect
+    Default: ""
+
+Resources:
+  ApiWebACL:
+    Type: AWS::WAFv2::WebACL
+    Properties:
+      Name: !Sub '${ServiceName}-${Stage}-webacl'
+      Scope: REGIONAL
+      DefaultAction: 
+        Allow: {}
+      VisibilityConfig:
+        CloudWatchMetricsEnabled: true
+        MetricName: !Sub '${ServiceName}-${Stage}-webacl'
+        SampledRequestsEnabled: true
+      Rules:
+        - Name: RateLimit2000Per5Min
+          Priority: 1
+          Action: 
+            Block: {}
+          Statement:
+            RateBasedStatement:
+              Limit: 2000
+              AggregateKeyType: IP
+          VisibilityConfig:
+            CloudWatchMetricsEnabled: true
+            MetricName: rate2k
+            SampledRequestsEnabled: true
+        
+        - Name: RateLimit100Per5MinForAuth
+          Priority: 2
+          Action:
+            Block: {}
+          Statement:
+            RateBasedStatement:
+              Limit: 100
+              AggregateKeyType: IP
+              ScopeDownStatement:
+                ByteMatchStatement:
+                  SearchString: /auth/
+                  FieldToMatch:
+                    UriPath: {}
+                  TextTransformations:
+                    - Priority: 0
+                      Type: LOWERCASE
+                  PositionalConstraint: CONTAINS
+          VisibilityConfig:
+            CloudWatchMetricsEnabled: true
+            MetricName: rate100auth
+            SampledRequestsEnabled: true
+        
+        - Name: CommonProtectionRules
+          Priority: 3
+          OverrideAction:
+            None: {}
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesCommonRuleSet
+              ExcludedRules:
+                - Name: SizeRestrictions_BODY
+                - Name: GenericRFI_BODY
+          VisibilityConfig:
+            CloudWatchMetricsEnabled: true
+            MetricName: common-rules
+            SampledRequestsEnabled: true
+        
+        - Name: KnownBadInputsProtection
+          Priority: 4
+          OverrideAction:
+            None: {}
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesKnownBadInputsRuleSet
+          VisibilityConfig:
+            CloudWatchMetricsEnabled: true
+            MetricName: bad-inputs
+            SampledRequestsEnabled: true
+        
+        - Name: SQLiProtection
+          Priority: 5
+          OverrideAction:
+            None: {}
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesSQLiRuleSet
+          VisibilityConfig:
+            CloudWatchMetricsEnabled: true
+            MetricName: sqli-protection
+            SampledRequestsEnabled: true
+
+  # Association with API Gateway (conditional - only if ARN provided)
+  ApiWebACLAssociation:
+    Type: AWS::WAFv2::WebACLAssociation
+    Condition: HasApiGatewayArn
+    Properties:
+      WebACLArn: !GetAtt ApiWebACL.Arn
+      ResourceArn: !Ref ApiGatewayArn
+
+Conditions:
+  HasApiGatewayArn: !Not [!Equals [!Ref ApiGatewayArn, ""]]
+
+Outputs:
+  WebACLArn:
+    Description: ARN of the WAF Web ACL
+    Value: !GetAtt ApiWebACL.Arn
+    Export:
+      Name: !Sub '${ServiceName}-${Stage}-webacl-arn'
+  
+  WebACLId:
+    Description: ID of the WAF Web ACL
+    Value: !GetAtt ApiWebACL.Id
+    Export:
+      Name: !Sub '${ServiceName}-${Stage}-webacl-id'
+  
+  WebACLName:
+    Description: Name of the WAF Web ACL
+    Value: !Ref ApiWebACL
+    Export:
+      Name: !Sub '${ServiceName}-${Stage}-webacl-name'

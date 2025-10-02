@@ -1,0 +1,48 @@
+# Dependencies
+node_modules/
+.netlify/plugins/node_modules/
+stripedshield-app/node_modules/
+frontend/node_modules/
+
+# Environment and sensitive files
+.env
+.env.*
+\!.env.example
+*.env
+credentials.json
+client_secret*.json
+web_client_secret.json
+firebase-service-account.json
+\!firebase-service-account.json.template
+oauth2-config.json
+google-oauth-setup.txt
+env-vars.json
+oauth-env-vars.json
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+*.zip
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Serverless
+.serverless/
+
+# Test files with potential secrets
+test-*.json
+*-payload.json
+*-response.json
+*.b64

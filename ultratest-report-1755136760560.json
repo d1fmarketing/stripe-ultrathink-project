@@ -1,0 +1,45 @@
+{
+  "timestamp": "2025-08-14T01:59:20.560Z",
+  "results": {
+    "phases": [
+      {
+        "name": "GPT-5 AI Features",
+        "status": "passed",
+        "duration": 6220,
+        "metrics": {
+          "narrativeWords": 1,
+          "model": "gpt-5"
+        }
+      },
+      {
+        "name": "Dispute Flow",
+        "status": "passed",
+        "duration": 0,
+        "metrics": {
+          "ce3Eligible": true,
+          "evidenceFields": 4,
+          "winProbability": 65
+        }
+      }
+    ],
+    "errors": [
+      {
+        "phase": "Stripe",
+        "error": "Invalid API Key provided: sk_test_***********************************************************************************************ZhsW"
+      }
+    ],
+    "metrics": {}
+  },
+  "summary": {
+    "totalTests": 2,
+    "passedTests": 2,
+    "failedTests": 0,
+    "totalDuration": 6220,
+    "errors": [
+      {
+        "phase": "Stripe",
+        "error": "Invalid API Key provided: sk_test_***********************************************************************************************ZhsW"
+      }
+    ]
+  }
+}

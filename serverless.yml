@@ -1,0 +1,735 @@
+service: chargeback-autopilot-stripe
+frameworkVersion: '3'
+useDotenv: true  # Auto-loads .env file
+
+plugins:
+  - serverless-esbuild
+
+custom:
+  esbuild:
+    bundle: true
+    minify: false
+    sourcemap: false
+    target: node20
+    platform: node
+    format: cjs
+    mainFields:
+      - main
+      - module
+    packager: npm
+    exclude:
+      - '@aws-sdk/*'  # Available in Lambda runtime
+    esbuildOptions:
+      keepNames: true
+
+provider:
+  name: aws
+  region: ${env:AWS_REGION, 'us-east-1'}
+  runtime: nodejs20.x
+  package:
+    individually: true
+    patterns:
+      - '!**'
+      - 'dist/handlers/**'
+      - 'node_modules/**'
+  httpApi: 
+    cors: true
+    throttle:
+      burstLimit: 1000
+      rateLimit: 500
+  tracing:
+    lambda: Active
+    apiGateway: true
+  # VPC configuration with NAT Gateway for Redis access
+  vpc:
+    securityGroupIds:
+      - sg-0c2a1401ef504c3f3  # stripedshield-lambda-sg
+    subnetIds:
+      - subnet-0ed20e029f7c77a89  # private-1b (NAT Gateway)
+      - subnet-0cfba6b122a7027a6  # private-1d (NAT Gateway)
+      - subnet-0601d642c3a5b569b  # private-1a (NAT Gateway)
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:PutItem
+            - dynamodb:GetItem
+            - dynamodb:Query
+            - dynamodb:Scan
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+            - dynamodb:BatchWriteItem
+            - dynamodb:BatchGetItem
+          Resource:
+            - { Fn::GetAtt: [ MerchantsTable, Arn ] }
+            - { Fn::GetAtt: [ CasesTable, Arn ] }
+            - { Fn::Join: [ '/', [ { Fn::GetAtt: [ CasesTable, Arn ] }, 'index/*' ] ] }
+            - { Fn::GetAtt: [ SubmissionsTable, Arn ] }
+            - { Fn::GetAtt: [ EvidenceTable, Arn ] }
+        - Effect: Allow
+          Action:
+            - states:StartExecution
+            - states:StopExecution
+            - states:DescribeExecution
+          Resource:
+            - !Ref DisputeProcessingStateMachine
+        - Effect: Allow
+          Action:
+            - s3:PutObject
+            - s3:GetObject
+            - s3:DeleteObject
+          Resource: ${self:provider.environment.EVIDENCE_BUCKET}/*
+        - Effect: Allow
+          Action:
+            - ses:SendEmail
+            - ses:SendRawEmail
+          Resource: '*'
+        - Effect: Allow
+          Action:
+            - ssm:GetParameter
+            - ssm:GetParameters
+            - ssm:GetParametersByPath
+          Resource: 
+            - arn:aws:ssm:${aws:region}:${aws:accountId}:parameter/stripedshield/*
+        - Effect: Allow
+          Action:
+            - kms:Decrypt
+          Resource: '*'
+        - Effect: Allow
+          Action:
+            - cloudwatch:PutMetricData
+          Resource: '*'
+  environment:
+    # Environment variables - PRODUCTION from SSM
+    STRIPE_SECRET: ${ssm:/stripedshield/prod/STRIPE_SECRET~true}
+    STRIPE_CLIENT_ID: ${ssm:/stripedshield/prod/STRIPE_CLIENT_ID~true}
+    STRIPE_REDIRECT_URI: https://ket0g0lurh.execute-api.us-east-1.amazonaws.com/auth/stripe/callback
+    STRIPE_CONNECT_WEBHOOK_SECRET: ${ssm:/stripedshield/prod/STRIPE_WEBHOOK_SECRET~true}
+    OPENAI_API_KEY: ${ssm:/stripedshield/prod/OPENAI_API_KEY~true}
+    SERVICE_KEY: ${ssm:/stripedshield/prod/SERVICE_KEY~true}
+    # AWS Resources
+    EVIDENCE_BUCKET: arn:aws:s3:::${sls:stage}-${self:service}-evidence-${aws:accountId}
+    CASES_TABLE: !Ref CasesTable
+    MERCHANTS_TABLE: !Ref MerchantsTable
+    SUBMISSIONS_TABLE: !Ref SubmissionsTable
+    EVIDENCE_TABLE: !Ref EvidenceTable
+    # Redis - Use SSM if available, otherwise default endpoint
+    REDIS_URL: ${ssm:/stripedshield/prod/REDIS_URL, 'redis://stripedshield-redis.mot6cw.0001.use1.cache.amazonaws.com:6379'}
+    # Firebase Configuration
+    FIREBASE_SERVICE_ACCOUNT: ${ssm:/stripedshield/prod/FIREBASE_SERVICE_ACCOUNT~true, ''}
+    FIREBASE_PROJECT_ID: ${ssm:/stripedshield/prod/FIREBASE_PROJECT_ID, 'stripecharge-b27a6'}
+    # AI Settings
+    AI_ENABLED: 'true'
+    AI_MODEL: 'gpt-5'
+    AI_TEMPERATURE: '1'
+    # Service Settings
+    SERVICE_NAME: StripedShield
+    SERVICE_VERSION: '2.0.1'
+    
+    # Step Functions (now deployed!)
+    SFN_ARN: !Ref DisputeProcessingStateMachine
+
+functions:
+  authStripeStart:
+    handler: src/handlers/authStripeStart.handler
+    memorySize: 1536
+    timeout: 10
+    events: [{ httpApi: { path: '/auth/stripe/start', method: get } }]
+
+  authStripeCallback:
+    handler: src/handlers/authStripeCallback.handler
+    memorySize: 1536
+    timeout: 10
+    events: [{ httpApi: { path: '/auth/stripe/callback', method: get } }]
+  authLogin:
+    handler: src/handlers/authLoginHandler.handler
+    memorySize: 1024
+    timeout: 10
+    events: 
+      - httpApi: 
+          path: '/auth/login'
+          method: post
+      - httpApi:
+          path: '/auth/login'
+          method: options
+
+  webhookStripe:
+    handler: src/handlers/webhookStripe.handler
+    memorySize: 2048
+    timeout: 30
+    provisionedConcurrency: 5
+    events: [{ httpApi: { path: '/webhooks/stripe', method: post } }]
+
+  getDispute: 
+    handler: src/handlers/getDispute.handler
+    memorySize: 1536
+    timeout: 10
+  getCharge: 
+    handler: src/handlers/getCharge.handler
+    memorySize: 1536
+    timeout: 10
+  getPaymentIntent: 
+    handler: src/handlers/getPaymentIntent.handler
+    memorySize: 1536
+    timeout: 10
+  buildEvidence: 
+    handler: src/handlers/buildEvidence.handler
+    memorySize: 2048
+    timeout: 30
+    provisionedConcurrency: 5
+  stripeStageEvidence: 
+    handler: src/handlers/stripeStageEvidence.handler
+    memorySize: 1536
+    timeout: 15
+  stripeSubmitEvidence: 
+    handler: src/handlers/stripeSubmitEvidence.handler
+    memorySize: 1536
+    timeout: 15
+
+  listCases:
+    handler: src/handlers/listCases.handler
+    memorySize: 1536
+    timeout: 10
+    events: [{ httpApi: { path: '/cases', method: get } }]
+  getCase:
+    handler: src/handlers/getCase.handler
+    memorySize: 1536
+    timeout: 10
+    provisionedConcurrency: 2
+    events: [{ httpApi: { path: '/cases/{id}', method: get } }]
+  collectCase:
+    handler: src/handlers/collectCase.handler
+    memorySize: 1536
+    timeout: 15
+    events: [{ httpApi: { path: '/cases/{id}/collect', method: post } }]
+  submitCase:
+    handler: src/handlers/submitCase.handler
+    memorySize: 2048
+    timeout: 30
+    provisionedConcurrency: 3
+    events: [{ httpApi: { path: '/cases/{id}/submit', method: post } }]
+  
+  retryCase:
+    handler: src/handlers/retryCase.handler
+    memorySize: 2048
+    timeout: 30
+    events: [{ httpApi: { path: '/cases/{id}/retry', method: post } }]
+
+  reportWeekly:
+    handler: src/handlers/reportWeekly.handler
+    memorySize: 1536
+    timeout: 60
+    events:
+      - schedule:
+          rate: cron(0 9 ? * MON *)
+          input: {}
+  
+  autoRefreshTokens:
+    handler: src/handlers/autoRefreshTokens.handler
+    memorySize: 1536
+    timeout: 120
+    events:
+      - schedule:
+          rate: rate(24 hours)
+          description: Daily OAuth token refresh for all connected accounts
+          input: {}
+  
+  # Health and Metrics endpoints
+  health:
+    handler: src/handlers/health.handler
+    memorySize: 1024
+    timeout: 10
+    provisionedConcurrency: 2
+    events: [{ httpApi: { path: '/health', method: get } }]
+  
+  metrics:
+    handler: src/handlers/metrics.handler
+    memorySize: 1024
+    timeout: 10
+    events: [{ httpApi: { path: '/metrics/performance', method: get } }]
+  
+  stats:
+    handler: src/handlers/statsHandler.handler
+    memorySize: 1536
+    timeout: 10
+    events: [{ httpApi: { path: '/stats', method: get } }]
+  
+  disputes:
+    handler: src/handlers/disputesHandler.handler
+    memorySize: 1024
+    timeout: 10
+    events: 
+      - httpApi: 
+          path: '/disputes'
+          method: get
+      - httpApi:
+          path: '/disputes'
+          method: options
+  
+  debugRedis:
+    handler: src/handlers/debugRedis.handler
+    memorySize: 1024
+    timeout: 10
+    events: [{ httpApi: { path: '/debug/redis', method: get } }]
+  
+  subscriptionStatus:
+    handler: src/handlers/subscriptionManager.getSubscriptionStatus
+    memorySize: 1024
+    timeout: 10
+    events: [{ httpApi: { path: '/subscription/status', method: get } }]
+  
+  subscriptionCancel:
+    handler: src/handlers/subscriptionManager.cancelSubscription
+    memorySize: 1024
+    timeout: 10
+    events: [{ httpApi: { path: '/subscription/cancel', method: post } }]
+  
+  # Missing functions that exist in Lambda but not in serverless.yml
+  getUserDisputes:
+    handler: src/handlers/getUserDisputes.handler
+    memorySize: 1536
+    timeout: 30
+    events: [{ httpApi: { path: '/user/disputes', method: get } }]
+  
+  createCheckoutSession:
+    handler: src/handlers/createCheckoutSession.handler
+    memorySize: 1536
+    timeout: 30
+    events: [{ httpApi: { path: '/subscription/checkout', method: post } }]
+
+# Step Functions configuration
+# The state machine is defined in resources section as CloudFormation resource
+
+resources:
+  Resources:
+    # CloudWatch Alarms for monitoring
+    HealthErrorAlarm:
+      Type: AWS::CloudWatch::Alarm
+      Properties:
+        AlarmName: ${self:service}-${sls:stage}-health-errors
+        AlarmDescription: Alert when health endpoint has errors
+        MetricName: Errors
+        Namespace: AWS/Lambda
+        Dimensions:
+          - Name: FunctionName
+            Value: ${self:service}-${sls:stage}-health
+        Statistic: Sum
+        Period: 300
+        EvaluationPeriods: 1
+        Threshold: 1
+        ComparisonOperator: GreaterThanOrEqualToThreshold
+        TreatMissingData: notBreaching
+    
+    ColdStartAlarm:
+      Type: AWS::CloudWatch::Alarm
+      Properties:
+        AlarmName: ${self:service}-${sls:stage}-cold-starts
+        AlarmDescription: Alert when Lambda cold starts exceed 3 seconds
+        MetricName: Duration
+        Namespace: AWS/Lambda
+        Dimensions:
+          - Name: FunctionName
+            Value: ${self:service}-${sls:stage}-buildEvidence
+        Statistic: Maximum
+        Period: 300
+        EvaluationPeriods: 1
+        Threshold: 3000
+        ComparisonOperator: GreaterThanThreshold
+        TreatMissingData: notBreaching
+    
+    APIGateway5XXAlarm:
+      Type: AWS::CloudWatch::Alarm
+      Properties:
+        AlarmName: ${self:service}-${sls:stage}-api-5xx-errors
+        AlarmDescription: Alert on API Gateway 5XX errors
+        MetricName: 5XXError
+        Namespace: AWS/ApiGateway
+        Dimensions:
+          - Name: ApiId
+            Value: !Ref HttpApi
+        Statistic: Sum
+        Period: 300
+        EvaluationPeriods: 1
+        Threshold: 5
+        ComparisonOperator: GreaterThanThreshold
+        TreatMissingData: notBreaching
+    
+    DynamoDBThrottleAlarm:
+      Type: AWS::CloudWatch::Alarm
+      Properties:
+        AlarmName: ${self:service}-${sls:stage}-dynamodb-throttles
+        AlarmDescription: Alert on DynamoDB throttling
+        MetricName: UserErrors
+        Namespace: AWS/DynamoDB
+        Dimensions:
+          - Name: TableName
+            Value: !Ref CasesTable
+        Statistic: Sum
+        Period: 300
+        EvaluationPeriods: 1
+        Threshold: 10
+        ComparisonOperator: GreaterThanThreshold
+        TreatMissingData: notBreaching
+    
+    WebhookFailureAlarm:
+      Type: AWS::CloudWatch::Alarm
+      Properties:
+        AlarmName: ${self:service}-${sls:stage}-webhook-failures
+        AlarmDescription: Alert when webhook processing fails
+        MetricName: Errors
+        Namespace: AWS/Lambda
+        Dimensions:
+          - Name: FunctionName
+            Value: ${self:service}-${sls:stage}-webhookStripe
+        Statistic: Sum
+        Period: 300
+        EvaluationPeriods: 1
+        Threshold: 5
+        ComparisonOperator: GreaterThanThreshold
+        TreatMissingData: notBreaching
+    
+    EvidenceSubmissionFailureAlarm:
+      Type: AWS::CloudWatch::Alarm
+      Properties:
+        AlarmName: ${self:service}-${sls:stage}-evidence-submission-failures
+        AlarmDescription: Alert when evidence submission fails
+        MetricName: Errors
+        Namespace: AWS/Lambda
+        Dimensions:
+          - Name: FunctionName
+            Value: ${self:service}-${sls:stage}-submitCase
+        Statistic: Sum
+        Period: 300
+        EvaluationPeriods: 1
+        Threshold: 3
+        ComparisonOperator: GreaterThanThreshold
+        TreatMissingData: notBreaching
+    
+    HighResponseTimeAlarm:
+      Type: AWS::CloudWatch::Alarm
+      Properties:
+        AlarmName: ${self:service}-${sls:stage}-high-response-time
+        AlarmDescription: Alert when API response time exceeds 1 second
+        MetricName: Duration
+        Namespace: AWS/Lambda
+        Dimensions:
+          - Name: FunctionName
+            Value: ${self:service}-${sls:stage}-listCases
+        Statistic: Average
+        Period: 300
+        EvaluationPeriods: 2
+        Threshold: 1000
+        ComparisonOperator: GreaterThanThreshold
+        TreatMissingData: notBreaching
+    
+    AIAnalysisFailureAlarm:
+      Type: AWS::CloudWatch::Alarm
+      Properties:
+        AlarmName: ${self:service}-${sls:stage}-ai-analysis-failures
+        AlarmDescription: Alert when AI dispute analysis fails
+        MetricName: ai_error
+        Namespace: StripeAutopilot/AI
+        Statistic: Sum
+        Period: 300
+        EvaluationPeriods: 1
+        Threshold: 10
+        ComparisonOperator: GreaterThanThreshold
+        TreatMissingData: notBreaching
+    
+    # Step Functions State Machine for dispute processing
+    DisputeProcessingStateMachine:
+      Type: AWS::StepFunctions::StateMachine
+      Properties:
+        StateMachineName: ${self:service}-${sls:stage}-dispute-workflow
+        RoleArn: !GetAtt StepFunctionsExecutionRole.Arn
+        DefinitionString: !Sub |
+          {
+            "Comment": "Automated dispute evidence collection and submission workflow",
+            "StartAt": "GetDispute",
+            "States": {
+              "GetDispute": {
+                "Type": "Task",
+                "Resource": "arn:aws:states:::lambda:invoke",
+                "Parameters": {
+                  "FunctionName": "${self:service}-${sls:stage}-getDispute",
+                  "Payload": {
+                    "dispute_id.$": "$.dispute_id",
+                    "merchant.$": "$.merchant"
+                  }
+                },
+                "ResultPath": "$.dispute",
+                "Next": "CheckDisputeStatus",
+                "Retry": [{
+                  "ErrorEquals": ["States.ALL"],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2
+                }],
+                "Catch": [{
+                  "ErrorEquals": ["States.ALL"],
+                  "Next": "HandleError",
+                  "ResultPath": "$.error"
+                }]
+              },
+              "CheckDisputeStatus": {
+                "Type": "Choice",
+                "Choices": [
+                  {
+                    "Variable": "$.dispute.status",
+                    "StringEquals": "needs_response",
+                    "Next": "GetCharge"
+                  },
+                  {
+                    "Variable": "$.dispute.status",
+                    "StringEquals": "warning_needs_response",
+                    "Next": "GetCharge"
+                  }
+                ],
+                "Default": "SkipProcessing"
+              },
+              "GetCharge": {
+                "Type": "Task",
+                "Resource": "arn:aws:states:::lambda:invoke",
+                "Parameters": {
+                  "FunctionName": "${self:service}-${sls:stage}-getCharge",
+                  "Payload": {
+                    "charge_id.$": "$.dispute.charge",
+                    "merchant.$": "$.merchant"
+                  }
+                },
+                "ResultPath": "$.charge",
+                "Next": "GetPaymentIntent",
+                "Retry": [{
+                  "ErrorEquals": ["States.ALL"],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2
+                }]
+              },
+              "GetPaymentIntent": {
+                "Type": "Task",
+                "Resource": "arn:aws:states:::lambda:invoke",
+                "Parameters": {
+                  "FunctionName": "${self:service}-${sls:stage}-getPaymentIntent",
+                  "Payload": {
+                    "payment_intent_id.$": "$.dispute.payment_intent",
+                    "merchant.$": "$.merchant"
+                  }
+                },
+                "ResultPath": "$.payment_intent",
+                "Next": "BuildEvidence",
+                "Catch": [{
+                  "ErrorEquals": ["Lambda.ServiceException"],
+                  "Next": "BuildEvidence",
+                  "ResultPath": "$.payment_intent_error"
+                }]
+              },
+              "BuildEvidence": {
+                "Type": "Task",
+                "Resource": "arn:aws:states:::lambda:invoke",
+                "Parameters": {
+                  "FunctionName": "${self:service}-${sls:stage}-buildEvidence",
+                  "Payload": {
+                    "dispute.$": "$.dispute",
+                    "charge.$": "$.charge",
+                    "payment_intent.$": "$.payment_intent",
+                    "merchant.$": "$.merchant"
+                  }
+                },
+                "ResultPath": "$.evidence_result",
+                "Next": "StageEvidence",
+                "Retry": [{
+                  "ErrorEquals": ["States.ALL"],
+                  "IntervalSeconds": 5,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2
+                }]
+              },
+              "StageEvidence": {
+                "Type": "Task",
+                "Resource": "arn:aws:states:::lambda:invoke",
+                "Parameters": {
+                  "FunctionName": "${self:service}-${sls:stage}-stripeStageEvidence",
+                  "Payload": {
+                    "dispute.$": "$.dispute",
+                    "evidence.$": "$.evidence_result.evidence",
+                    "merchant.$": "$.merchant"
+                  }
+                },
+                "ResultPath": "$.stage_result",
+                "Next": "SubmitEvidence"
+              },
+              "SubmitEvidence": {
+                "Type": "Task",
+                "Resource": "arn:aws:states:::lambda:invoke",
+                "Parameters": {
+                  "FunctionName": "${self:service}-${sls:stage}-stripeSubmitEvidence",
+                  "Payload": {
+                    "dispute.$": "$.dispute",
+                    "merchant.$": "$.merchant"
+                  }
+                },
+                "End": true,
+                "Catch": [{
+                  "ErrorEquals": ["States.ALL"],
+                  "Next": "HandleError",
+                  "ResultPath": "$.error"
+                }]
+              },
+              "SkipProcessing": {
+                "Type": "Pass",
+                "Result": "Dispute not in actionable status",
+                "End": true
+              },
+              "HandleError": {
+                "Type": "Pass",
+                "Result": "Error occurred during processing",
+                "End": true
+              }
+            }
+          }
+    
+    # IAM Role for Step Functions execution
+    StepFunctionsExecutionRole:
+      Type: AWS::IAM::Role
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: states.amazonaws.com
+              Action: sts:AssumeRole
+        Policies:
+          - PolicyName: StepFunctionsLambdaExecution
+            PolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - lambda:InvokeFunction
+                  Resource:
+                    - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${self:service}-${sls:stage}-*
+                - Effect: Allow
+                  Action:
+                    - logs:CreateLogGroup
+                    - logs:CreateLogStream
+                    - logs:PutLogEvents
+                  Resource: '*'
+    
+    EvidenceBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${sls:stage}-${self:service}-evidence-${aws:accountId}
+        VersioningConfiguration: { Status: Enabled }
+        LifecycleConfiguration:
+          Rules:
+            - Id: GlacierAfter18Months
+              Status: Enabled
+              Transitions: [ { StorageClass: GLACIER, TransitionInDays: 540 } ]
+
+    MerchantsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions: [ { AttributeName: pk, AttributeType: S } ]
+        KeySchema: [ { AttributeName: pk, KeyType: HASH } ]
+
+    CasesTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - { AttributeName: pk, AttributeType: S }
+          - { AttributeName: sk, AttributeType: S }
+          - { AttributeName: gsi1_pk, AttributeType: S }
+          - { AttributeName: gsi1_sk, AttributeType: N }
+          - { AttributeName: gsi2_pk, AttributeType: S }
+          - { AttributeName: gsi2_sk, AttributeType: N }
+          - { AttributeName: merchantId, AttributeType: S }
+          - { AttributeName: createdAt, AttributeType: N }
+          - { AttributeName: customerId, AttributeType: S }
+        KeySchema:
+          - { AttributeName: pk, KeyType: HASH }
+          - { AttributeName: sk, KeyType: RANGE }
+        GlobalSecondaryIndexes:
+          - IndexName: gsi1
+            KeySchema: [ { AttributeName: gsi1_pk, KeyType: HASH }, { AttributeName: gsi1_sk, KeyType: RANGE } ]
+            Projection: { ProjectionType: ALL }
+          - IndexName: gsi2
+            KeySchema: [ { AttributeName: gsi2_pk, KeyType: HASH }, { AttributeName: gsi2_sk, KeyType: RANGE } ]
+            Projection: { ProjectionType: ALL }
+          - IndexName: ByMerchantByCreatedAt
+            KeySchema: 
+              - { AttributeName: merchantId, KeyType: HASH }
+              - { AttributeName: createdAt, KeyType: RANGE }
+            Projection: 
+              ProjectionType: INCLUDE
+              NonKeyAttributes: [caseId, status, amount, currency, disputeReason]
+          - IndexName: ByCustomerByCreatedAt
+            KeySchema: 
+              - { AttributeName: customerId, KeyType: HASH }
+              - { AttributeName: createdAt, KeyType: RANGE }
+            Projection: 
+              ProjectionType: INCLUDE
+              NonKeyAttributes: [merchantId, chargeId, amount, refunded]
+
+    SubmissionsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions: [ { AttributeName: pk, AttributeType: S }, { AttributeName: sk, AttributeType: S } ]
+        KeySchema: [ { AttributeName: pk, KeyType: HASH }, { AttributeName: sk, KeyType: RANGE } ]
+
+    EvidenceTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions: [ { AttributeName: pk, AttributeType: S }, { AttributeName: sk, AttributeType: S } ]
+        KeySchema: [ { AttributeName: pk, KeyType: HASH }, { AttributeName: sk, KeyType: RANGE } ]
+
+    # WAF Web ACL for rate limiting and DDoS protection
+    ApiWebACL:
+      Type: AWS::WAFv2::WebACL
+      Properties:
+        Name: ${self:service}-${sls:stage}-webacl
+        Scope: REGIONAL
+        DefaultAction: 
+          Allow: {}
+        VisibilityConfig:
+          CloudWatchMetricsEnabled: true
+          MetricName: ${self:service}-${sls:stage}-webacl
+          SampledRequestsEnabled: true
+        Rules:
+          - Name: RateLimit2000Per5Min
+            Priority: 1
+            Action: 
+              Block: {}
+            Statement:
+              RateBasedStatement:
+                Limit: 2000
+                AggregateKeyType: IP
+            VisibilityConfig:
+              CloudWatchMetricsEnabled: true
+              MetricName: rate2k
+              SampledRequestsEnabled: true
+          - Name: CommonProtectionRules
+            Priority: 2
+            OverrideAction:
+              None: {}
+            Statement:
+              ManagedRuleGroupStatement:
+                VendorName: AWS
+                Name: AWSManagedRulesCommonRuleSet
+            VisibilityConfig:
+              CloudWatchMetricsEnabled: true
+              MetricName: common-rules
+              SampledRequestsEnabled: true
+
+    # Associate WAF with API Gateway
+    ApiWebACLAssoc:
+      Type: AWS::WAFv2::WebACLAssociation
+      Properties:
+        WebACLArn: !GetAtt ApiWebACL.Arn
+        ResourceArn: !Sub arn:aws:apigateway:${AWS::Region}::/apis/${HttpApi}/stages/${sls:stage}

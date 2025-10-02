@@ -1,0 +1,57 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg: #ffffff;
+    --bg-secondary: #f9fafb;
+    --ink: #111827;
+    --ink-secondary: #6b7280;
+    --muted: #9ca3af;
+    --accent: #635BFF;
+    --accent-secondary: #4f46e5;
+    --success: #10b981;
+    --warning: #f59e0b;
+    --error: #ef4444;
+    --border: #e5e7eb;
+  }
+  
+  .dark {
+    --bg: #0a0f1a;
+    --bg-secondary: #111827;
+    --ink: #e6e9f2;
+    --ink-secondary: #93a1b1;
+    --muted: #6b7280;
+    --accent: #635BFF;
+    --accent-secondary: #4f46e5;
+    --success: #10b981;
+    --warning: #f59e0b;
+    --error: #ef4444;
+    --border: #1f2937;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center rounded-md px-4 py-2 font-medium transition-all duration-200;
+  }
+  
+  .btn-primary {
+    @apply btn bg-[var(--accent)] text-white hover:bg-[var(--accent-secondary)] hover:shadow-lg;
+  }
+  
+  .card {
+    @apply rounded-xl border border-[var(--border)] bg-white dark:bg-gray-800 p-6 shadow-sm;
+  }
+  
+  .badge {
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
+  }
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: system-ui, -apple-system, sans-serif;
+}

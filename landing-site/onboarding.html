@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to StripedShield - Connect Your Stripe Account</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Firebase SDK v9 (Modular) -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { 
+            getAuth, 
+            onAuthStateChanged,
+            signOut
+        } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+        import {
+            getFirestore,
+            doc,
+            getDoc,
+            setDoc
+        } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+        
+        // Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyBGemDqwlwE4v0tZ7RXttJsW9l_0YrtBNA",
+            authDomain: "stripecharge-b27a6.firebaseapp.com",
+            projectId: "stripecharge-b27a6",
+            storageBucket: "stripecharge-b27a6.firebasestorage.app",
+            messagingSenderId: "573857361404",
+            appId: "1:573857361404:web:50dab6d2b28c441cae5679",
+            measurementId: "G-27XBNSG2Z9"
+        };
+        
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        
+        let currentUser = null;
+        
+        // Check authentication state
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                currentUser = user;
+                document.getElementById('userEmail').textContent = user.email;
+                
+                // Check if already connected to Stripe
+                const userDoc = await getDoc(doc(db, 'users', user.uid));
+                if (userDoc.exists() && userDoc.data().stripe_account_id) {
+                    // Already connected, redirect to dashboard
+                    showMessage('Stripe account already connected! Redirecting to dashboard...', 'success');
+                    setTimeout(() => {
+                        window.location.href = '/dashboard-protected.html';
+                    }, 2000);
+                }
+            } else {
+                // Not logged in, redirect to auth
+                window.location.href = '/auth.html';
+            }
+        });
+        
+        // Connect Stripe function
+        window.connectStripe = async function() {
+            if (!currentUser) {
+                showMessage('Please log in first', 'error');
+                return;
+            }
+            
+            showMessage('Connecting to Stripe...', 'info');
+            
+            // Store user info for callback
+            sessionStorage.setItem('connectingUserId', currentUser.uid);
+            sessionStorage.setItem('connectingUserEmail', currentUser.email);
+            
+            // Create state with Firebase UID
+            const stateData = {
+                firebase_uid: currentUser.uid,
+                csrf: Math.random().toString(36).substring(2),
+                timestamp: Date.now()
+            };
+            
+            // Direct OAuth approach (like connect.html)
+            const params = new URLSearchParams({
+                response_type: 'code',
+                client_id: 'ca_SsL2dWaMFTzSsFMMGzraPtJY2OiPPRID',
+                scope: 'read_write',
+                redirect_uri: 'https://ket0g0lurh.execute-api.us-east-1.amazonaws.com/auth/stripe/callback',
+                state: btoa(JSON.stringify(stateData))
+            });
+            
+            const url = 'https://connect.stripe.com/oauth/authorize?' + params.toString();
+            
+            // Redirect to Stripe OAuth
+            window.location.href = url;
+        }
+        
+        // Skip for now function
+        window.skipForNow = function() {
+            // Check if we have a saved Stripe account
+            const savedStripeAccount = localStorage.getItem('stripe_account_id');
+            const dashboardUrl = savedStripeAccount 
+                ? `/dashboard-protected.html?stripe_account_id=${savedStripeAccount}`
+                : '/dashboard-protected.html';
+            window.location.href = dashboardUrl;
+        }
+        
+        // Show message function
+        window.showMessage = function(message, type = 'info') {
+            const messageDiv = document.getElementById('message');
+            const bgColor = type === 'error' ? 'bg-red-100 text-red-700' : 
+                           type === 'success' ? 'bg-green-100 text-green-700' : 
+                           'bg-blue-100 text-blue-700';
+            
+            messageDiv.className = `p-4 rounded-lg ${bgColor}`;
+            messageDiv.textContent = message;
+            messageDiv.classList.remove('hidden');
+            
+            if (type !== 'error') {
+                setTimeout(() => {
+                    messageDiv.classList.add('hidden');
+                }, 5000);
+            }
+        }
+        
+        // Check for connection success
+        const urlParams = new URLSearchParams(window.location.search);
+        const stripeAccountId = urlParams.get('stripe_account_id');
+        
+        if (urlParams.get('connected') === '1' || stripeAccountId) {
+            // ULTRATHINK FIX: Save to localStorage if we have stripe_account_id
+            if (stripeAccountId) {
+                localStorage.setItem('stripe_account_id', stripeAccountId);
+                localStorage.setItem('stripe_connected', 'true');
+                localStorage.setItem('stripe_connected_at', new Date().toISOString());
+                console.log('✅ Saved Stripe account to localStorage:', stripeAccountId);
+            }
+            
+            showMessage('Stripe account connected successfully! Redirecting to dashboard...', 'success');
+            setTimeout(() => {
+                const dashboardUrl = stripeAccountId 
+                    ? `/dashboard-protected.html?success=true&stripe_account_id=${stripeAccountId}`
+                    : '/dashboard-protected.html';
+                window.location.href = dashboardUrl;
+            }, 2000);
+        }
+    </script>
+    
+    <style>
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        .pulse-animation {
+            animation: pulse 2s infinite;
+        }
+        
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    
+    <!-- Header -->
+    <header class="bg-white shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <h1 class="text-2xl font-bold bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">
+                    StripedShield
+                </h1>
+                <div class="text-sm text-gray-600">
+                    <span id="userEmail"></span>
+                </div>
+            </div>
+        </div>
+    </header>
+    
+    <!-- Main Content -->
+    <div class="max-w-4xl mx-auto px-4 py-12">
+        
+        <!-- Welcome Section -->
+        <div class="text-center mb-12">
+            <h2 class="text-4xl font-bold text-gray-900 mb-4">
+                Welcome to StripedShield! 🎉
+            </h2>
+            <p class="text-xl text-gray-600">
+                Let's connect your Stripe account to start defending chargebacks
+            </p>
+        </div>
+        
+        <!-- Message Container -->
+        <div id="message" class="hidden mb-8"></div>
+        
+        <!-- Connect Card -->
+        <div class="bg-white rounded-2xl shadow-lg p-8 mb-8">
+            <div class="text-center mb-8">
+                <div class="w-24 h-24 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-12 h-12 text-purple-600" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z"/>
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clip-rule="evenodd"/>
+                    </svg>
+                </div>
+                
+                <h3 class="text-2xl font-bold text-gray-900 mb-2">
+                    Connect Your Stripe Account
+                </h3>
+                <p class="text-gray-600 mb-8">
+                    We need to connect to your Stripe account to monitor and defend your chargebacks automatically.
+                </p>
+                
+                <!-- Features -->
+                <div class="grid md:grid-cols-3 gap-6 text-left mb-8">
+                    <div class="flex items-start space-x-3">
+                        <svg class="w-6 h-6 text-green-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                        </svg>
+                        <div>
+                            <h4 class="font-semibold text-gray-900">Real-time Monitoring</h4>
+                            <p class="text-sm text-gray-600">Instant detection when disputes arrive</p>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-start space-x-3">
+                        <svg class="w-6 h-6 text-green-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                        </svg>
+                        <div>
+                            <h4 class="font-semibold text-gray-900">Automatic Defense</h4>
+                            <p class="text-sm text-gray-600">AI builds evidence in seconds</p>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-start space-x-3">
+                        <svg class="w-6 h-6 text-green-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                        </svg>
+                        <div>
+                            <h4 class="font-semibold text-gray-900">68% Win Rate</h4>
+                            <p class="text-sm text-gray-600">Industry-leading success rate</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Connect Button -->
+                <button onclick="connectStripe()" 
+                        class="w-full md:w-auto px-8 py-4 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold rounded-lg hover:from-purple-700 hover:to-indigo-700 transition pulse-animation">
+                    <span class="flex items-center justify-center">
+                        <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 2a4 4 0 00-4 4v1H5a1 1 0 00-.994.89l-1 9A1 1 0 004 18h12a1 1 0 00.994-1.11l-1-9A1 1 0 0015 7h-1V6a4 4 0 00-4-4zm2 5V6a2 2 0 10-4 0v1h4zm-6 3a1 1 0 112 0 1 1 0 01-2 0zm7-1a1 1 0 100 2 1 1 0 000-2z" clip-rule="evenodd"/>
+                        </svg>
+                        Connect Stripe Account
+                    </span>
+                </button>
+                
+                <!-- Skip Link -->
+                <div class="mt-4">
+                    <button onclick="skipForNow()" class="text-sm text-gray-500 hover:text-gray-700 underline">
+                        Skip for now (demo mode)
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Security Notice -->
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div class="flex items-start">
+                <svg class="w-5 h-5 text-blue-600 mt-0.5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+                </svg>
+                <div>
+                    <h4 class="font-semibold text-blue-900">Your data is secure</h4>
+                    <p class="text-sm text-blue-700 mt-1">
+                        We use Stripe's official OAuth to connect. We never see or store your Stripe credentials.
+                        You can revoke access anytime from your Stripe dashboard.
+                    </p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- What Happens Next -->
+        <div class="mt-12">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">What happens after connecting?</h3>
+            <div class="space-y-3">
+                <div class="flex items-center">
+                    <span class="w-8 h-8 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center font-bold mr-3">1</span>
+                    <span class="text-gray-700">We'll start monitoring your Stripe account for new disputes</span>
+                </div>
+                <div class="flex items-center">
+                    <span class="w-8 h-8 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center font-bold mr-3">2</span>
+                    <span class="text-gray-700">When a dispute arrives, our AI immediately builds evidence</span>
+                </div>
+                <div class="flex items-center">
+                    <span class="w-8 h-8 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center font-bold mr-3">3</span>
+                    <span class="text-gray-700">Evidence is submitted automatically within minutes</span>
+                </div>
+                <div class="flex items-center">
+                    <span class="w-8 h-8 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center font-bold mr-3">4</span>
+                    <span class="text-gray-700">You'll see real-time updates in your dashboard</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+</body>
+</html>

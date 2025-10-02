@@ -1,0 +1,1 @@
+{"errorType":"Error","errorMessage":"Missing Stripe authentication for merchant","trace":["Error: Missing Stripe authentication for merchant","    at Runtime.handler (/var/task/buildEvidence_orig.js:55604:11)","    at Runtime.handleOnceNonStreaming (file:///var/runtime/index.mjs:1206:29)"]}

@@ -1,0 +1,46 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Users can only read/write their own user document
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Merchants collection - only accessible by the user who owns it
+    match /merchants/{merchantId} {
+      allow read: if request.auth != null && 
+        (resource.data.firebase_uid == request.auth.uid || 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.stripe_account_id == merchantId);
+      allow write: if request.auth != null && request.auth.uid == resource.data.firebase_uid;
+    }
+    
+    // Disputes - only accessible by the merchant who owns them
+    match /disputes/{disputeId} {
+      allow read: if request.auth != null && 
+        get(/databases/$(database)/documents/merchants/$(resource.data.merchant_id)).data.firebase_uid == request.auth.uid;
+      allow write: if false; // Only backend can write disputes
+    }
+    
+    // Subscriptions - only accessible by the user who owns them
+    match /subscriptions/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if false; // Only backend can write subscription status
+    }
+    
+    // Settings - user-specific settings
+    match /settings/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Public data (if any) - readable by all authenticated users
+    match /public/{document=**} {
+      allow read: if request.auth != null;
+      allow write: if false; // Only admins can write
+    }
+    
+    // Block all other access
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
