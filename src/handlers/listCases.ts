@@ -28,11 +28,10 @@ export async function handler(event:any){
   }
   
   // Validate input
-  const validationSchema = {
-    ...commonSchemas.merchantId,
-    ...commonSchemas.disputeStatus,
-    ...commonSchemas.pagination
-  };
+  const validationSchema = commonSchemas.merchantId
+    .merge(commonSchemas.disputeStatus)
+    .merge(commonSchemas.pagination)
+    .strict();
   const validationResult = await validationMiddleware(event, validationSchema);
   if (validationResult) {
     return validationResult; // Return 400 if validation fails
@@ -46,7 +45,12 @@ export async function handler(event:any){
   const authContext = authResult;
   
   // Use validated and sanitized input
-  const input = event.validatedInput || {};
+  const input = (event.validatedInput ?? {}) as {
+    merchant?: string;
+    status?: string;
+    limit?: number;
+    offset?: number;
+  };
   let merchantId = input.merchant || '';
   
   // If no merchant specified, use the user's own merchant ID

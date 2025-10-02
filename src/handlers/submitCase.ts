@@ -1,5 +1,6 @@
 import { ok, bad } from "../shared/responses.js";
 import { requireAuth, verifyMerchantOwnership } from "../shared/auth.js";
+import { validationMiddleware, commonSchemas } from "../shared/validation.js";
 import { createAuditLog, AuditAction } from "../shared/auditLog.js";
 import Stripe from 'stripe';
 import { 
@@ -42,17 +43,30 @@ async function publishMetric(name: string, value: number, unit: string = 'Count'
 }
 
 export async function handler(event:any){
+  const validationSchema = commonSchemas.disputeId
+    .merge(commonSchemas.merchantId)
+    .merge(commonSchemas.forceFlag)
+    .strict();
+  const validationResult = await validationMiddleware(event, validationSchema);
+  if (validationResult) {
+    return validationResult;
+  }
+
   // REQUIRE AUTHENTICATION
   const authResult = await requireAuth(event);
   if ('statusCode' in authResult) {
     return authResult; // Return 401 if not authenticated
   }
   const authContext = authResult;
-  
-  const id = event.pathParameters?.id;
-  const qs = event.queryStringParameters || {};
-  const merchantId = qs.merchant || authContext.merchant_id;
-  const forceSubmit = qs.force === 'true'; // Allow forcing immediate submission
+
+  const input = (event.validatedInput ?? {}) as {
+    id: string;
+    merchant?: string;
+    force?: boolean;
+  };
+  const id = input.id;
+  const merchantId = input.merchant || authContext.merchant_id;
+  const forceSubmit = input.force ?? false; // Allow forcing immediate submission
   
   if(!merchantId || !id) return bad("missing merchant or id");
   

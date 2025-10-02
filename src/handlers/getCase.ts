@@ -5,10 +5,9 @@ import { validationMiddleware, commonSchemas } from "../shared/validation.js";
 
 export async function handler(event:any){
   // Validate input first
-  const validationSchema = {
-    ...commonSchemas.disputeId,
-    ...commonSchemas.merchantId
-  };
+  const validationSchema = commonSchemas.disputeId
+    .merge(commonSchemas.merchantId)
+    .strict();
   const validationResult = await validationMiddleware(event, validationSchema);
   if (validationResult) {
     return validationResult; // Return 400 if validation fails
@@ -22,8 +21,11 @@ export async function handler(event:any){
   const authContext = authResult;
   
   // Use validated input
-  const input = event.validatedInput || {};
-  const id = input.id || event.pathParameters?.id;
+  const input = (event.validatedInput ?? {}) as {
+    id: string;
+    merchant?: string;
+  };
+  const id = input.id;
   let merchantId = input.merchant || '';
   
   // If no merchant specified, use the user's own merchant ID

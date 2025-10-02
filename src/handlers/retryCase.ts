@@ -1,6 +1,7 @@
 import { ok, bad, createErrorResponse } from "../shared/responses.js";
 import { getCase } from "../shared/db.js";
 import { requireAuth, verifyMerchantOwnership } from "../shared/auth.js";
+import { validationMiddleware, commonSchemas } from "../shared/validation.js";
 import { StartExecutionCommand, SFNClient } from "@aws-sdk/client-sfn";
 import Stripe from 'stripe';
 
@@ -8,20 +9,35 @@ const sfn = new SFNClient({});
 const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion: '2025-07-30.basil' });
 
 export async function handler(event: any) {
+  const validationSchema = commonSchemas.disputeId
+    .merge(commonSchemas.merchantId)
+    .merge(commonSchemas.retryMetadata)
+    .strict();
+  const validationResult = await validationMiddleware(event, validationSchema);
+  if (validationResult) {
+    return validationResult;
+  }
+
+  const input = (event.validatedInput ?? {}) as {
+    id: string;
+    merchant?: string;
+    reason?: string;
+  };
+
   // REQUIRE AUTHENTICATION
   const authResult = await requireAuth(event);
   if ('statusCode' in authResult) {
     return authResult; // Return 401 if not authenticated
   }
   const authContext = authResult;
-  
-  const disputeId = event.pathParameters?.id;
+
+  const disputeId = input.id;
   if (!disputeId) {
     return bad("Missing dispute ID");
   }
-  
+
   // Get merchant ID from auth context or query params
-  const merchantId = authContext.merchant_id || event.queryStringParameters?.merchant;
+  const merchantId = authContext.merchant_id || input.merchant;
   if (!merchantId) {
     return bad("No merchant account connected");
   }
@@ -79,7 +95,7 @@ export async function handler(event: any) {
       },
       dispute_id: disputeId,
       retry: true,
-      retry_reason: event.body ? JSON.parse(event.body).reason : 'Manual retry requested',
+      retry_reason: input.reason || 'Manual retry requested',
       retry_timestamp: new Date().toISOString()
     };
     

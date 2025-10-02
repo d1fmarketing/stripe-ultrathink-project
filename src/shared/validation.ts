@@ -1,34 +1,21 @@
 import { createErrorResponse } from './responses.js';
+import { z, AnyZodObject, ZodError } from 'zod';
 
-// Input validation rules
-export interface ValidationRule {
-  type: 'string' | 'number' | 'boolean' | 'email' | 'url' | 'disputeId' | 'merchantId' | 'array';
-  required?: boolean;
-  minLength?: number;
-  maxLength?: number;
-  min?: number;
-  max?: number;
-  pattern?: RegExp;
-  enum?: any[];
-  sanitize?: boolean;
-}
-
-export interface ValidationSchema {
-  [key: string]: ValidationRule;
-}
+const DISPUTE_ID_REGEX = /^(dp_|du_)[a-zA-Z0-9]{24,}$/;
+const MERCHANT_ID_REGEX = /^acct_[a-zA-Z0-9]{16,}$/;
 
 /**
  * Sanitize string input to prevent XSS and injection attacks
  */
 export function sanitizeString(input: string): string {
   if (typeof input !== 'string') return '';
-  
+
   // Remove any HTML tags
   let sanitized = input.replace(/<[^>]*>/g, '');
-  
+
   // Remove any script tags more aggressively
   sanitized = sanitized.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
-  
+
   // Escape special characters
   sanitized = sanitized
     .replace(/&/g, '&amp;')
@@ -37,245 +24,354 @@ export function sanitizeString(input: string): string {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#x27;')
     .replace(/\//g, '&#x2F;');
-  
+
   // Trim whitespace
   return sanitized.trim();
 }
 
-/**
- * Validate email format
- */
-export function isValidEmail(email: string): boolean {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
-}
+const sanitizeIfString = (value: unknown): unknown => {
+  if (typeof value === 'string') {
+    return sanitizeString(value);
+  }
+  return value;
+};
 
-/**
- * Validate URL format
- */
-export function isValidUrl(url: string): boolean {
-  try {
-    new URL(url);
-    return true;
-  } catch {
-    return false;
-  }
-}
+const optionalString = (fieldName: string, options?: { maxLength?: number }) =>
+  z.preprocess(
+    value => {
+      if (value === undefined || value === null) {
+        return undefined;
+      }
 
-/**
- * Validate Stripe dispute ID format
- */
-export function isValidDisputeId(id: string): boolean {
-  // Stripe dispute IDs start with 'dp_' or 'du_'
-  return /^(dp_|du_)[a-zA-Z0-9]{24,}$/.test(id);
-}
+      if (typeof value === 'string') {
+        const sanitized = sanitizeString(value);
+        return sanitized === '' ? undefined : sanitized;
+      }
 
-/**
- * Validate Stripe account ID format
- */
-export function isValidMerchantId(id: string): boolean {
-  // Stripe account IDs start with 'acct_'
-  return /^acct_[a-zA-Z0-9]{16,}$/.test(id);
-}
+      return value;
+    },
+    (() => {
+      let schema = z
+        .string({ invalid_type_error: `${fieldName} must be a string` })
+        .trim();
 
-/**
- * Validate a single value against a rule
- */
-export function validateValue(value: any, rule: ValidationRule): { valid: boolean; error?: string } {
-  // Check required
-  if (rule.required && (value === undefined || value === null || value === '')) {
-    return { valid: false, error: 'Field is required' };
-  }
-  
-  // If not required and empty, skip other validations
-  if (!rule.required && (value === undefined || value === null || value === '')) {
-    return { valid: true };
-  }
-  
-  // Type validation
-  switch (rule.type) {
-    case 'string':
-      if (typeof value !== 'string') {
-        return { valid: false, error: 'Must be a string' };
+      if (options?.maxLength) {
+        schema = schema.max(options.maxLength, {
+          message: `${fieldName} must be at most ${options.maxLength} characters`
+        });
       }
-      if (rule.minLength && value.length < rule.minLength) {
-        return { valid: false, error: `Must be at least ${rule.minLength} characters` };
-      }
-      if (rule.maxLength && value.length > rule.maxLength) {
-        return { valid: false, error: `Must be at most ${rule.maxLength} characters` };
-      }
-      if (rule.pattern && !rule.pattern.test(value)) {
-        return { valid: false, error: 'Invalid format' };
-      }
-      if (rule.enum && !rule.enum.includes(value)) {
-        return { valid: false, error: `Must be one of: ${rule.enum.join(', ')}` };
-      }
-      break;
-      
-    case 'number':
-      const num = Number(value);
-      if (isNaN(num)) {
-        return { valid: false, error: 'Must be a number' };
-      }
-      if (rule.min !== undefined && num < rule.min) {
-        return { valid: false, error: `Must be at least ${rule.min}` };
-      }
-      if (rule.max !== undefined && num > rule.max) {
-        return { valid: false, error: `Must be at most ${rule.max}` };
-      }
-      break;
-      
-    case 'boolean':
-      if (typeof value !== 'boolean' && value !== 'true' && value !== 'false') {
-        return { valid: false, error: 'Must be a boolean' };
-      }
-      break;
-      
-    case 'email':
-      if (!isValidEmail(value)) {
-        return { valid: false, error: 'Invalid email format' };
-      }
-      break;
-      
-    case 'url':
-      if (!isValidUrl(value)) {
-        return { valid: false, error: 'Invalid URL format' };
-      }
-      break;
-      
-    case 'disputeId':
-      if (!isValidDisputeId(value)) {
-        return { valid: false, error: 'Invalid dispute ID format' };
-      }
-      break;
-      
-    case 'merchantId':
-      if (!isValidMerchantId(value)) {
-        return { valid: false, error: 'Invalid merchant ID format' };
-      }
-      break;
-      
-    case 'array':
-      if (!Array.isArray(value)) {
-        return { valid: false, error: 'Must be an array' };
-      }
-      if (rule.minLength && value.length < rule.minLength) {
-        return { valid: false, error: `Array must have at least ${rule.minLength} items` };
-      }
-      if (rule.maxLength && value.length > rule.maxLength) {
-        return { valid: false, error: `Array must have at most ${rule.maxLength} items` };
-      }
-      break;
-  }
-  
-  return { valid: true };
-}
 
-/**
- * Validate input data against a schema
- */
-export function validateInput(data: any, schema: ValidationSchema): { 
-  valid: boolean; 
-  errors: { [key: string]: string }; 
-  sanitized: any 
-} {
-  const errors: { [key: string]: string } = {};
-  const sanitized: any = {};
-  
-  // Validate each field in the schema
-  for (const [field, rule] of Object.entries(schema)) {
-    const value = data[field];
-    const result = validateValue(value, rule);
-    
-    if (!result.valid) {
-      errors[field] = result.error!;
-    } else if (value !== undefined && value !== null) {
-      // Sanitize if requested and it's a string
-      if (rule.sanitize && rule.type === 'string') {
-        sanitized[field] = sanitizeString(value);
-      } else {
-        sanitized[field] = value;
-      }
-    }
-  }
-  
-  // Check for unexpected fields (potential injection attempts)
-  const schemaKeys = Object.keys(schema);
-  const dataKeys = Object.keys(data);
-  const unexpectedKeys = dataKeys.filter(key => !schemaKeys.includes(key));
-  
-  if (unexpectedKeys.length > 0) {
-    console.warn('Unexpected fields in input:', unexpectedKeys);
-    // Don't include unexpected fields in sanitized output
-  }
-  
-  return {
-    valid: Object.keys(errors).length === 0,
-    errors,
-    sanitized
-  };
-}
+      return schema.optional();
+    })()
+  );
 
-/**
- * Validation middleware for API handlers
- */
-export async function validationMiddleware(
-  event: any,
-  schema: ValidationSchema
-): Promise<any> {
-  // Combine all input sources
-  const input = {
-    ...event.queryStringParameters,
-    ...event.pathParameters,
-    ...(event.body ? JSON.parse(event.body) : {})
-  };
-  
-  // Validate input
-  const validation = validateInput(input, schema);
-  
-  if (!validation.valid) {
-    return createErrorResponse(400, 'Validation failed', {
-      errors: validation.errors
-    });
-  }
-  
-  // Attach sanitized input to event for handler to use
-  event.validatedInput = validation.sanitized;
-  
-  return null; // Continue to handler
-}
+const optionalInteger = (
+  fieldName: string,
+  { min, max }: { min?: number; max?: number }
+) =>
+  z.preprocess(
+    value => {
+      if (value === undefined || value === null || value === '') {
+        return undefined;
+      }
+
+      if (typeof value === 'number') {
+        return value;
+      }
+
+      if (typeof value === 'string') {
+        const sanitized = sanitizeString(value);
+        if (sanitized === '') {
+          return undefined;
+        }
+
+        const num = Number(sanitized);
+        return Number.isNaN(num) ? sanitized : num;
+      }
+
+      return value;
+    },
+    (() => {
+      let schema = z.number({ invalid_type_error: `${fieldName} must be a number` });
+
+      if (min !== undefined) {
+        schema = schema.min(min, {
+          message: `${fieldName} must be at least ${min}`
+        });
+      }
+
+      if (max !== undefined) {
+        schema = schema.max(max, {
+          message: `${fieldName} must be at most ${max}`
+        });
+      }
+
+      return schema
+        .refine(value => Number.isFinite(value), {
+          message: `${fieldName} must be a finite number`
+        })
+        .refine(value => Number.isInteger(value), {
+          message: `${fieldName} must be an integer`
+        })
+        .optional();
+    })()
+  );
+
+const optionalBoolean = (fieldName: string) =>
+  z.preprocess(
+    value => {
+      if (value === undefined || value === null || value === '') {
+        return undefined;
+      }
+
+      if (typeof value === 'boolean') {
+        return value;
+      }
+
+      if (typeof value === 'string') {
+        const sanitized = sanitizeString(value).toLowerCase();
+        if (sanitized === 'true') return true;
+        if (sanitized === 'false') return false;
+      }
+
+      return value;
+    },
+    z.boolean({ invalid_type_error: `${fieldName} must be a boolean` }).optional()
+  );
 
 /**
  * Common validation schemas for reuse
  */
 export const commonSchemas = {
-  disputeId: {
-    id: { type: 'disputeId' as const, required: true }
-  },
-  
-  merchantId: {
-    merchant: { type: 'merchantId' as const, required: false, sanitize: true }
-  },
-  
-  pagination: {
-    limit: { type: 'number' as const, min: 1, max: 100, required: false },
-    offset: { type: 'number' as const, min: 0, required: false }
-  },
-  
-  disputeStatus: {
-    status: {
-      type: 'string' as const,
-      enum: ['needs_response', 'warning_needs_response', 'warning_under_review', 'under_review', 'won', 'lost'],
-      required: false
-    }
-  },
-  
-  authCredentials: {
-    email: { type: 'email' as const, required: true, sanitize: true },
-    password: { type: 'string' as const, required: true, minLength: 8, maxLength: 128 }
-  },
-  
-  webhookEvent: {
-    type: { type: 'string' as const, required: true, pattern: /^[a-z]+\.[a-z]+(\.[a-z]+)?$/ }
-  }
+  disputeId: z
+    .object({
+      id: z.preprocess(
+        sanitizeIfString,
+        z
+          .string({
+            required_error: 'Dispute ID is required',
+            invalid_type_error: 'Dispute ID must be a string'
+          })
+          .trim()
+          .min(1, { message: 'Dispute ID is required' })
+          .regex(DISPUTE_ID_REGEX, { message: 'Invalid dispute ID format' })
+      )
+    })
+    .strict(),
+
+  merchantId: z
+    .object({
+      merchant: z
+        .preprocess(
+          value => {
+            if (value === undefined || value === null) {
+              return undefined;
+            }
+
+            if (typeof value === 'string') {
+              const sanitized = sanitizeString(value);
+              return sanitized === '' ? undefined : sanitized;
+            }
+
+            return value;
+          },
+          z
+            .string({ invalid_type_error: 'Merchant ID must be a string' })
+            .trim()
+            .regex(MERCHANT_ID_REGEX, {
+              message: 'Invalid merchant ID format'
+            })
+            .optional()
+        )
+    })
+    .strict(),
+
+  pagination: z
+    .object({
+      limit: optionalInteger('limit', { min: 1, max: 100 }),
+      offset: optionalInteger('offset', { min: 0 })
+    })
+    .strict(),
+
+  disputeStatus: z
+    .object({
+      status: z
+        .preprocess(
+          value => {
+            if (value === undefined || value === null || value === '') {
+              return undefined;
+            }
+
+            if (typeof value === 'string') {
+              const sanitized = sanitizeString(value);
+              return sanitized === '' ? undefined : sanitized;
+            }
+
+            return value;
+          },
+          z
+            .string({ invalid_type_error: 'Dispute status must be a string' })
+            .refine(
+              value =>
+                [
+                  'needs_response',
+                  'warning_needs_response',
+                  'warning_under_review',
+                  'under_review',
+                  'won',
+                  'lost'
+                ].includes(value),
+              {
+                message:
+                  "Dispute status must be one of: needs_response, warning_needs_response, warning_under_review, under_review, won, lost"
+              }
+            )
+            .optional()
+        )
+    })
+    .strict(),
+
+  authCredentials: z
+    .object({
+      email: z.preprocess(
+        sanitizeIfString,
+        z
+          .string({
+            required_error: 'Email is required',
+            invalid_type_error: 'Email must be a string'
+          })
+          .trim()
+          .email({ message: 'Invalid email format' })
+      ),
+      password: z.preprocess(
+        sanitizeIfString,
+        z
+          .string({
+            required_error: 'Password is required',
+            invalid_type_error: 'Password must be a string'
+          })
+          .min(8, { message: 'Password must be at least 8 characters' })
+          .max(128, { message: 'Password must be at most 128 characters' })
+      )
+    })
+    .strict(),
+
+  webhookEvent: z
+    .object({
+      type: z.preprocess(
+        sanitizeIfString,
+        z
+          .string({
+            required_error: 'Event type is required',
+            invalid_type_error: 'Event type must be a string'
+          })
+          .trim()
+          .regex(/^[a-z]+\.[a-z]+(\.[a-z]+)?$/, {
+            message: 'Invalid webhook event type format'
+          })
+      )
+    })
+    .strict(),
+
+  forceFlag: z
+    .object({
+      force: optionalBoolean('force')
+    })
+    .strict(),
+
+  retryMetadata: z
+    .object({
+      reason: optionalString('Reason', { maxLength: 500 })
+    })
+    .strict()
 };
+
+const decodeBody = (event: any): any => {
+  if (!event.body) {
+    return {};
+  }
+
+  let bodyContent = event.body;
+
+  if (event.isBase64Encoded && typeof bodyContent === 'string') {
+    try {
+      bodyContent = Buffer.from(bodyContent, 'base64').toString('utf-8');
+    } catch (error) {
+      return {
+        __parseError: 'Invalid base64-encoded body'
+      };
+    }
+  }
+
+  if (typeof bodyContent === 'string') {
+    if (bodyContent.trim() === '') {
+      return {};
+    }
+
+    try {
+      return JSON.parse(bodyContent);
+    } catch (error) {
+      return {
+        __parseError: 'Body must be valid JSON'
+      };
+    }
+  }
+
+  if (typeof bodyContent === 'object') {
+    return bodyContent;
+  }
+
+  return {
+    __parseError: 'Unsupported body format'
+  };
+};
+
+const formatZodErrors = (error: ZodError) => {
+  const flattened = error.flatten();
+  const errors: Record<string, string> = {};
+
+  for (const [field, messages] of Object.entries(flattened.fieldErrors)) {
+    if (messages && messages.length > 0) {
+      errors[field] = messages[0];
+    }
+  }
+
+  if (flattened.formErrors.length > 0) {
+    errors._form = flattened.formErrors.join(' ');
+  }
+
+  return errors;
+};
+
+/**
+ * Validation middleware for API handlers using Zod schemas
+ */
+export async function validationMiddleware(
+  event: any,
+  schema: AnyZodObject
+): Promise<any> {
+  const bodyData = decodeBody(event);
+
+  if (bodyData.__parseError) {
+    return createErrorResponse(400, 'Validation failed', {
+      errors: { body: bodyData.__parseError }
+    });
+  }
+
+  const input = {
+    ...(event.queryStringParameters || {}),
+    ...(event.pathParameters || {}),
+    ...bodyData
+  };
+
+  const result = schema.strict().safeParse(input);
+
+  if (!result.success) {
+    return createErrorResponse(400, 'Validation failed', {
+      errors: formatZodErrors(result.error)
+    });
+  }
+
+  event.validatedInput = result.data;
+  return null;
+}
