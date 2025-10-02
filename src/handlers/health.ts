@@ -1,7 +1,8 @@
-import { DynamoDBClient, GetItemCommand } from "@aws-sdk/client-dynamodb";
+import { GetItemCommand } from "@aws-sdk/client-dynamodb";
 import { getRedisClient, isRedisReady } from "../cache/redisConnection";
+import { dynamoClient } from "../shared/ddb";
 
-const dynamo = new DynamoDBClient({});
+const dynamo = dynamoClient;
 
 const withTimeout = <T>(p: Promise<T>, ms = 350) =>
   Promise.race([

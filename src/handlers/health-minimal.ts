@@ -1,4 +1,5 @@
-import { DynamoDBClient, GetItemCommand } from "@aws-sdk/client-dynamodb";
+import { GetItemCommand } from "@aws-sdk/client-dynamodb";
+import { dynamoClient } from "../shared/ddb";
 
 // Minimal Redis check without heavy imports
 async function checkRedis(): Promise<{ ok: boolean; error?: string }> {
@@ -36,7 +37,7 @@ async function checkRedis(): Promise<{ ok: boolean; error?: string }> {
   });
 }
 
-const dynamo = new DynamoDBClient({});
+const dynamo = dynamoClient;
 
 export const handler = async (_evt: any, ctx: any) => {
   if (ctx && typeof ctx === 'object') {

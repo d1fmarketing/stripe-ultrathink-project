@@ -1,7 +1,7 @@
 import Stripe from 'stripe';
 import { z } from 'zod';
-import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, GetCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
+import { GetCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
+import { ddb } from '../shared/ddb';
 
 // Initialize Stripe client lazily
 let stripe: Stripe | null = null;
@@ -17,10 +17,6 @@ function getStripeClient(): Stripe {
   }
   return stripe;
 }
-
-// Initialize DynamoDB client
-const dynamoClient = new DynamoDBClient({ region: process.env.AWS_REGION || 'us-east-1' });
-const docClient = DynamoDBDocumentClient.from(dynamoClient);
 
 // Evidence bundle schema
 export const EvidenceBundleSchema = z.object({
@@ -439,7 +435,7 @@ async function collectCommunications(
   
   try {
     // Query communications table in DynamoDB
-    const response = await docClient.send(new QueryCommand({
+    const response = await ddb.send(new QueryCommand({
       TableName: process.env.COMMUNICATIONS_TABLE || 'communications',
       KeyConditionExpression: 'merchantId = :merchantId AND customerId = :customerId',
       ExpressionAttributeValues: {
@@ -567,7 +563,7 @@ function normalizePhone(phone: string): string {
 
 async function getTrackingFromDB(trackingNumber: string, merchantId: string): Promise<any> {
   try {
-    const response = await docClient.send(new GetCommand({
+    const response = await ddb.send(new GetCommand({
       TableName: process.env.TRACKING_TABLE || 'tracking',
       Key: {
         merchantId,
@@ -582,7 +578,7 @@ async function getTrackingFromDB(trackingNumber: string, merchantId: string): Pr
 
 async function getLoginHistory(customerId: string, merchantId: string): Promise<number> {
   try {
-    const response = await docClient.send(new QueryCommand({
+    const response = await ddb.send(new QueryCommand({
       TableName: process.env.ACTIVITY_TABLE || 'activity',
       KeyConditionExpression: 'merchantId = :merchantId AND customerId = :customerId',
       ExpressionAttributeValues: {
