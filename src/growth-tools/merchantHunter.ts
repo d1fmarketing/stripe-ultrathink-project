@@ -1,4 +1,5 @@
 import Stripe from 'stripe';
+import logger from '../shared/logger';
 
 export interface TargetMerchant {
   merchantId: string;
@@ -145,12 +146,12 @@ export class MerchantHunter {
   }
   
   async findTargets(limit: number = 100): Promise<TargetMerchant[]> {
-    console.log(`Starting merchant hunt with ${this.strategies.length} strategies...`);
+    logger.info('Starting merchant hunt', { strategyCount: this.strategies.length });
     
     const targets: TargetMerchant[] = [];
     
     for (const strategy of this.strategies) {
-      console.log(`Executing strategy: ${strategy.name}`);
+      logger.info('Executing merchant hunt strategy', { strategy: strategy.name });
       const strategyTargets = await this.executeStrategy(strategy, limit - targets.length);
       targets.push(...strategyTargets);
       
@@ -166,7 +167,7 @@ export class MerchantHunter {
     // Sort by score (highest first)
     scoredTargets.sort((a, b) => b.score - a.score);
     
-    console.log(`Found ${scoredTargets.length} potential targets`);
+    logger.info('Merchant hunt results', { targetCount: scoredTargets.length });
     return scoredTargets.slice(0, limit);
   }
   
@@ -369,7 +370,7 @@ export class MerchantHunter {
   }
   
   async enrichContact(target: TargetMerchant): Promise<TargetMerchant> {
-    console.log(`Enriching contact info for ${target.businessName}...`);
+    logger.info('Enriching contact info', { businessName: target.businessName });
     
     // In production, this would use services like:
     // - Clearbit for company data

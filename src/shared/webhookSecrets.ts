@@ -1,6 +1,7 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, GetCommand } from '@aws-sdk/lib-dynamodb';
 import { SSMClient, GetParameterCommand } from '@aws-sdk/client-ssm';
+import logger from './logger';
 
 const client = new DynamoDBClient({});
 const ddb = DynamoDBDocumentClient.from(client);
@@ -23,7 +24,7 @@ export async function getMerchantWebhookSecret(merchantId: string): Promise<stri
     }));
     
     if (result.Item?.webhook_secret) {
-      console.log(`[WEBHOOK] Using merchant-specific webhook secret for ${merchantId}`);
+      logger.info('Using merchant-specific webhook secret', { merchantId });
       return result.Item.webhook_secret;
     }
     
@@ -31,10 +32,10 @@ export async function getMerchantWebhookSecret(merchantId: string): Promise<stri
     if (result.Item?.webhook_endpoint_id) {
       // For Connect webhooks, the secret follows a pattern
       // but we should have stored it during webhook registration
-      console.log(`[WEBHOOK] Found webhook endpoint ID but no secret for ${merchantId}`);
+      logger.warn('Merchant webhook endpoint ID found but no secret stored', { merchantId });
     }
   } catch (error) {
-    console.error(`[WEBHOOK] Error fetching merchant webhook secret:`, error);
+    logger.error('Error fetching merchant webhook secret', { error, merchantId });
   }
   
   // Fallback to global webhook secret from environment/SSM
@@ -47,7 +48,7 @@ export async function getMerchantWebhookSecret(merchantId: string): Promise<stri
 async function getGlobalWebhookSecret(): Promise<string> {
   // First check environment variable
   if (process.env.STRIPE_CONNECT_WEBHOOK_SECRET) {
-    console.log('[WEBHOOK] Using global webhook secret from environment');
+    logger.info('Using global webhook secret from environment');
     return process.env.STRIPE_CONNECT_WEBHOOK_SECRET;
   }
   
@@ -59,15 +60,15 @@ async function getGlobalWebhookSecret(): Promise<string> {
     }));
     
     if (result.Parameter?.Value) {
-      console.log('[WEBHOOK] Using global webhook secret from SSM');
+      logger.info('Using global webhook secret from SSM');
       return result.Parameter.Value;
     }
   } catch (error) {
-    console.error('[WEBHOOK] Error fetching webhook secret from SSM:', error);
+    logger.error('Error fetching webhook secret from SSM', { error });
   }
-  
+
   // Last resort fallback - should not happen in production
-  console.error('[WEBHOOK] WARNING: No webhook secret found, webhooks will fail validation!');
+  logger.error('No webhook secret found; webhooks will fail validation');
   throw new Error('No webhook secret configured');
 }
 
@@ -84,24 +85,26 @@ export async function validateWebhookSignature(
 ): Promise<boolean> {
   const Stripe = require('stripe');
   const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion: '2025-07-30.basil' });
-  
+
+  let eventId: string | undefined;
   try {
     // Get the appropriate webhook secret
-    const webhookSecret = accountId 
+    const webhookSecret = accountId
       ? await getMerchantWebhookSecret(accountId)
       : await getGlobalWebhookSecret();
-    
+
     // Verify the webhook signature
     const event = stripe.webhooks.constructEvent(
       payload,
       signature,
       webhookSecret
     );
-    
-    console.log(`[WEBHOOK] Signature validated for event ${event.id}`);
+
+    eventId = event.id;
+    logger.info('Webhook signature validated', { eventId });
     return true;
   } catch (error) {
-    console.error('[WEBHOOK] Signature validation failed:', error);
+    logger.error('Webhook signature validation failed', { error, eventId });
     return false;
   }
 }
@@ -133,9 +136,9 @@ export async function storeWebhookSecret(
       }
     }));
     
-    console.log(`[WEBHOOK] Stored webhook secret for merchant ${merchantId}`);
+    logger.info('Stored webhook secret for merchant', { merchantId });
   } catch (error) {
-    console.error('[WEBHOOK] Error storing webhook secret:', error);
+    logger.error('Error storing webhook secret', { error, merchantId });
     throw error;
   }
 }

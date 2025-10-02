@@ -4,6 +4,7 @@ import { requireAuth, verifyMerchantOwnership } from "../shared/auth.js";
 import { rateLimitMiddleware } from "../shared/rateLimit.js";
 import { validationMiddleware, commonSchemas } from "../shared/validation.js";
 import Redis from "ioredis";
+import logger from '../shared/logger';
 
 // Initialize Redis with lazy connection
 let redis: Redis | null = null;
@@ -73,11 +74,11 @@ export async function handler(event:any){
     try {
       const cached = await redisClient.get(cacheKey);
       if (cached) {
-        console.log(`[CACHE HIT] Returning cached cases for ${merchantId}`);
+        logger.info('Returning cached cases from cache', { merchantId });
         return ok(JSON.parse(cached));
       }
     } catch (error) {
-      console.warn('[CACHE] Redis read failed, falling back to DB:', error);
+      logger.warn('Redis read failed, falling back to DB', { error, merchantId });
       // Continue to database on Redis error
     }
   }
@@ -101,9 +102,9 @@ export async function handler(event:any){
   if (redisClient) {
     try {
       await redisClient.setex(cacheKey, 90, JSON.stringify(response));
-      console.log(`[CACHE SET] Cached cases for ${merchantId} (90s TTL)`);
+      logger.info('Cached cases', { merchantId, ttlSeconds: 90 });
     } catch (error) {
-      console.warn('[CACHE] Redis write failed:', error);
+      logger.warn('Redis write failed', { error, merchantId });
       // Continue even if caching fails
     }
   }

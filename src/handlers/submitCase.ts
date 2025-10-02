@@ -2,6 +2,7 @@ import { ok, bad } from "../shared/responses.js";
 import { requireAuth, verifyMerchantOwnership } from "../shared/auth.js";
 import { createAuditLog, AuditAction } from "../shared/auditLog.js";
 import Stripe from 'stripe';
+import logger from '../shared/logger';
 import { 
   predictWinRate, 
   shouldSubmit,
@@ -37,7 +38,7 @@ async function publishMetric(name: string, value: number, unit: string = 'Count'
       }]
     });
   } catch (error) {
-    console.error('Failed to publish metric:', name, error);
+    logger.error('Failed to publish submission metric', { metric: name, error });
   }
 }
 
@@ -129,7 +130,7 @@ export async function handler(event:any){
         // Get win prediction
         winPrediction = await predictWinRate(features);
         
-        console.log('[AI] Win Prediction:', {
+        logger.info('AI win prediction', {
           disputeId: dispute.id,
           score: winPrediction.score,
           recommendation: winPrediction.recommendation,
@@ -147,7 +148,10 @@ export async function handler(event:any){
         await publishMetric('ai_win_score', winPrediction.score * 100, 'Percent');
         
         if (shouldSkip) {
-          console.log(`[AI] Skipping dispute ${id} - low win probability: ${(winPrediction.score * 100).toFixed(1)}%`);
+          logger.info('Skipping dispute due to low win probability', {
+            disputeId: id,
+            winProbability: Number((winPrediction.score * 100).toFixed(1)),
+          });
           await publishMetric('ai_skipped', 1);
           
           return ok({
@@ -164,7 +168,7 @@ export async function handler(event:any){
           });
         }
       } catch (error) {
-        console.error('[AI] Win prediction failed:', error);
+        logger.error('AI win prediction failed', { error, disputeId: id });
         await publishMetric('ai_error', 1);
         // Continue with submission if AI fails
       }
@@ -198,7 +202,10 @@ export async function handler(event:any){
         shouldDelay = timingRecommendation.shouldDelay;
         
         if (shouldDelay) {
-          console.log(`[AI] Timing optimization suggests delay for ${dispute.id}:`, timingRecommendation.reasoning);
+          logger.info('AI timing recommendation suggests delay', {
+            disputeId: dispute.id,
+            reasoning: timingRecommendation.reasoning,
+          });
           await publishMetric('timing_delayed', 1);
           
           return ok({
@@ -213,13 +220,13 @@ export async function handler(event:any){
           });
         }
       } catch (error) {
-        console.error('[AI] Timing optimization failed:', error);
+        logger.error('AI timing optimization failed', { error, disputeId: dispute.id });
         // Continue without timing optimization on error
       }
     }
-    
+
     // Submit the dispute
-    console.log(`[SUBMIT] Submitting dispute ${id} for merchant ${merchantId}`);
+    logger.info('Submitting dispute', { disputeId: id, merchantId });
     const res = await stripe.disputes.update(id, { submit: true }, { stripeAccount: merchantId });
     
     // Audit successful submission
@@ -265,7 +272,7 @@ export async function handler(event:any){
     return ok(submissionData);
     
   } catch (error: any) {
-    console.error('Error submitting dispute:', error);
+    logger.error('Error submitting dispute', { error, disputeId: id, merchantId });
     return bad(`Failed to submit dispute: ${error.message}`);
   }
 }

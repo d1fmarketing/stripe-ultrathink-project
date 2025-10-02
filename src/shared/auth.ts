@@ -1,6 +1,7 @@
 import admin from 'firebase-admin';
 import { GetCommand } from "@aws-sdk/lib-dynamodb";
 import { ddb } from "./ddb.js";
+import logger from './logger';
 
 // Initialize Firebase Admin SDK
 let firebaseApp: admin.app.App | null = null;
@@ -15,16 +16,16 @@ function initFirebaseAdmin() {
           credential: admin.credential.cert(serviceAccount),
           projectId: serviceAccount.project_id || process.env.FIREBASE_PROJECT_ID || "stripecharge-b27a6"
         });
-        console.log('Firebase Admin initialized with service account');
+        logger.info('Firebase Admin initialized with service account');
       } else {
         // Fallback: Initialize with project ID only (limited functionality)
-        console.warn('No Firebase service account found, using limited initialization');
+        logger.warn('No Firebase service account found, using limited initialization');
         firebaseApp = admin.initializeApp({
           projectId: process.env.FIREBASE_PROJECT_ID || "stripecharge-b27a6"
         });
       }
     } catch (error) {
-      console.error('Failed to initialize Firebase Admin:', error);
+      logger.error('Failed to initialize Firebase Admin', { error });
       throw new Error('Firebase Admin initialization failed');
     }
   }
@@ -44,7 +45,7 @@ export interface AuthContext {
  */
 export async function validateAuth(authHeader: string | undefined): Promise<AuthContext | null> {
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    console.log('No valid auth header');
+    logger.warn('No valid auth header provided');
     return null;
   }
 
@@ -68,7 +69,7 @@ export async function validateAuth(authHeader: string | undefined): Promise<Auth
       }
     } catch (e) {
       // No merchant record yet, that's okay
-      console.log('No merchant record for user:', decodedToken.uid);
+      logger.warn('No merchant record for user', { uid: decodedToken.uid });
     }
     
     return {
@@ -79,7 +80,7 @@ export async function validateAuth(authHeader: string | undefined): Promise<Auth
       firebase_token: token
     };
   } catch (error) {
-    console.error('Auth validation error:', error);
+    logger.error('Auth validation error', { error });
     return null;
   }
 }
@@ -125,8 +126,8 @@ export async function verifyMerchantOwnership(
       return true;
     }
   } catch (e) {
-    console.error('Error checking merchant ownership:', e);
+    logger.error('Error checking merchant ownership', { error: e, merchantId, userId: authContext.uid });
   }
-  
+
   return false;
 }

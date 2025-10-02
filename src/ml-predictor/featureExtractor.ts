@@ -1,4 +1,5 @@
 import Stripe from 'stripe';
+import logger from '../shared/logger';
 
 export interface DisputeFeatures {
   basic: BasicFeatures;
@@ -158,7 +159,7 @@ export class FeatureExtractor {
       this.cache.set(cacheKey, charge);
       return charge;
     } catch (error) {
-      console.error(`Failed to retrieve charge ${chargeId}:`, error);
+      logger.error('Failed to retrieve charge', { chargeId, error });
       return undefined;
     }
   }
@@ -174,7 +175,7 @@ export class FeatureExtractor {
       this.cache.set(cacheKey, pi);
       return pi;
     } catch (error) {
-      console.error(`Failed to retrieve payment intent ${piId}:`, error);
+      logger.error('Failed to retrieve payment intent', { paymentIntentId: piId, error });
       return undefined;
     }
   }
@@ -224,7 +225,7 @@ export class FeatureExtractor {
         });
         customerCharges = chargesList.data;
       } catch (error) {
-        console.error('Failed to get customer data:', error);
+        logger.error('Failed to get customer data', { error, customerId: customer?.id });
       }
     }
     

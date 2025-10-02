@@ -7,6 +7,7 @@ import { DeviceFingerprint } from './sources/deviceFingerprint';
 import { CustomerHistory } from './sources/customerHistory';
 import { AnalyticsCollector } from './sources/analyticsCollector';
 import { SocialProof } from './sources/socialProof';
+import logger from '../shared/logger';
 
 export interface EvidenceBundle {
   disputeId: string;
@@ -126,8 +127,8 @@ export class SmartEvidenceCollector {
     const recommendations = this.generateRecommendations(evidence, evidenceSources);
     const missingEvidence = this.identifyMissingEvidence(evidence, dispute.reason);
     
-    console.log(`Evidence collection completed in ${Date.now() - startTime}ms`);
-    console.log(`Quality Score: ${qualityScore}/100, Completeness: ${completeness}%`);
+    logger.info(`Evidence collection completed in ${Date.now() - startTime}ms`);
+    logger.info(`Quality Score: ${qualityScore}/100, Completeness: ${completeness}%`);
     
     return {
       disputeId: dispute.id,

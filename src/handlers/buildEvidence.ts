@@ -8,6 +8,7 @@ import {
 import { CloudWatch, StandardUnit } from '@aws-sdk/client-cloudwatch';
 import { ddb } from "../shared/ddb";
 import { PutCommand } from "@aws-sdk/lib-dynamodb";
+import logger from '../shared/logger';
 
 // ML Enhancement Imports (Safe - with fallbacks)
 let patternCache: any = null;
@@ -18,27 +19,27 @@ let fraudTracker: any = null;
 if (process.env.ENABLE_PATTERN_CACHE === 'true') {
   try {
     patternCache = require('../cache/patternCache').patternCache;
-    console.log('✅ Pattern cache ML enabled');
+    logger.info('Pattern cache ML enabled');
   } catch (e) {
-    console.log('Pattern cache not available, using standard flow');
+    logger.warn('Pattern cache not available, using standard flow', { error: e });
   }
 }
 
 if (process.env.ENABLE_SCORE_CACHE === 'true') {
   try {
     scoreCache = require('../cache/scoreCache').scoreCache;
-    console.log('✅ Score cache ML enabled');
+    logger.info('Score cache ML enabled');
   } catch (e) {
-    console.log('Score cache not available, using standard flow');
+    logger.warn('Score cache not available, using standard flow', { error: e });
   }
 }
 
 if (process.env.ENABLE_FRAUD_ML === 'true') {
   try {
     fraudTracker = require('../cache/fraudTracker').fraudTracker;
-    console.log('✅ Fraud ML detection enabled');
+    logger.info('Fraud ML detection enabled');
   } catch (e) {
-    console.log('Fraud ML not available, using standard flow');
+    logger.warn('Fraud ML not available, using standard flow', { error: e });
   }
 }
 
@@ -57,7 +58,7 @@ async function publishMetric(name: string, value: number, unit: string = 'Count'
       }]
     });
   } catch (error) {
-    console.error('Failed to publish metric:', name, error);
+    logger.error('Failed to publish metric', { metric: name, error });
   }
 }
 
@@ -67,7 +68,7 @@ export async function handler(evt:any){
   // Use merchant's OAuth token for connected accounts, fallback to global secret
   const stripeKey = merchant?.access_token || process.env.STRIPE_SECRET || '';
   if (!stripeKey) {
-    console.error('No Stripe key available for merchant:', merchant?.id);
+    logger.error('No Stripe key available for merchant', { merchantId: merchant?.id });
     throw new Error('Missing Stripe authentication for merchant');
   }
   
@@ -96,17 +97,22 @@ export async function handler(evt:any){
       const cachedPattern = await patternCache.lookup(patternKey);
       if (cachedPattern && cachedPattern.confidence > 0.8) {
         cachedWinProbability = cachedPattern.winRate;
-        console.log(`⚡ ML Pattern Cache Hit: ${(cachedWinProbability * 100).toFixed(1)}% win probability (confidence: ${cachedPattern.confidence})`);
+        logger.info('ML pattern cache hit', {
+          winProbability: Number((cachedWinProbability * 100).toFixed(1)),
+          confidence: cachedPattern.confidence,
+        });
         await publishMetric('ml_pattern_cache_hit', 1);
-        
+
         // Early exit if win probability too low
         if (cachedWinProbability < 0.20) {
-          console.log('🛑 ML: Very low win probability, minimal evidence mode');
+          logger.warn('ML minimal evidence mode triggered due to low win probability', {
+            winProbability: cachedWinProbability,
+          });
           await publishMetric('ml_early_exit_low_probability', 1);
         }
       }
     } catch (error) {
-      console.log('Pattern cache lookup failed, continuing with standard flow:', error);
+      logger.warn('Pattern cache lookup failed, continuing with standard flow', { error });
       await publishMetric('ml_pattern_cache_error', 1);
     }
   }
@@ -125,11 +131,13 @@ export async function handler(evt:any){
       const fraudScore = await fraudTracker.analyze(fraudSignals);
       if (fraudScore > 0.85) {
         fraudDetected = true;
-        console.log(`🚨 ML Fraud Detection: High fraud probability (${(fraudScore * 100).toFixed(1)}%)`);
+        logger.warn('ML fraud detection triggered', {
+          fraudProbability: Number((fraudScore * 100).toFixed(1)),
+        });
         await publishMetric('ml_fraud_detected', 1);
       }
     } catch (error) {
-      console.log('Fraud detection failed, continuing without fraud signals:', error);
+      logger.warn('Fraud detection failed, continuing without fraud signals', { error });
       await publishMetric('ml_fraud_detection_error', 1);
     }
   }
@@ -153,7 +161,9 @@ export async function handler(evt:any){
         
         // Optimize evidence based on win probability
         if (winProbability > 0.75) {
-          console.log(`🚀 ML: High win probability (${(winProbability * 100).toFixed(1)}%), using aggressive evidence strategy`);
+          logger.info('ML aggressive evidence strategy selected', {
+            winProbability: Number((winProbability * 100).toFixed(1)),
+          });
           mlOptimizedEvidence = {
             strategy: 'aggressive',
             emphasizeCE3: true,
@@ -162,7 +172,9 @@ export async function handler(evt:any){
           };
           await publishMetric('ml_strategy_aggressive', 1);
         } else if (winProbability > 0.45) {
-          console.log(`⚡ ML: Medium win probability (${(winProbability * 100).toFixed(1)}%), using balanced evidence strategy`);
+          logger.info('ML balanced evidence strategy selected', {
+            winProbability: Number((winProbability * 100).toFixed(1)),
+          });
           mlOptimizedEvidence = {
             strategy: 'balanced',
             emphasizeCE3: evidencePackage.ce3Eligible,
@@ -171,7 +183,9 @@ export async function handler(evt:any){
           };
           await publishMetric('ml_strategy_balanced', 1);
         } else {
-          console.log(`⚠️ ML: Low win probability (${(winProbability * 100).toFixed(1)}%), using defensive evidence strategy`);
+          logger.info('ML defensive evidence strategy selected', {
+            winProbability: Number((winProbability * 100).toFixed(1)),
+          });
           mlOptimizedEvidence = {
             strategy: 'defensive',
             emphasizeCE3: false,
@@ -196,14 +210,14 @@ export async function handler(evt:any){
         });
         
       } catch (error) {
-        console.log('Score cache optimization failed, using standard strategy:', error);
+        logger.warn('Score cache optimization failed, using standard strategy', { error });
         await publishMetric('ml_score_cache_error', 1);
       }
     }
-    
+
     // Apply ML optimizations if available
     if (mlOptimizedEvidence && fraudDetected) {
-      console.log('🚨 ML: Fraud detected, adding extra verification evidence');
+      logger.warn('ML fraud signals adding extra verification evidence');
       evidencePackage.fraudWarning = true;
     }
     
@@ -253,10 +267,10 @@ export async function handler(evt:any){
           // Add narrative to evidence
           evidence.customer_communication = aiNarrative;
           evidencePackage.narrative = aiNarrative;
-          
+
           // Track metrics
           const wordCount = aiNarrative.split(/\s+/).length;
-          console.log('[AI] Narrative generated:', wordCount, 'words');
+          logger.info('AI narrative generated', { wordCount });
           await publishMetric('ai_narrative_generated', 1);
           await publishMetric('ai_narrative_words', wordCount, 'None');
         }
@@ -283,17 +297,17 @@ export async function handler(evt:any){
             evidence.duplicate_charge_explanation = evidence.duplicate_charge_explanation || ceInfo;
           }
           
-          console.log('[AI] Evidence bundle collected:', {
+          logger.info('AI evidence bundle collected', {
             ceCandidates: aiBundle.ceCandidates.length,
             hasShipping: !!aiBundle.shipping,
             hasCommunications: !!aiBundle.communications,
-            hasUsageSignals: !!aiBundle.usageSignals
+            hasUsageSignals: !!aiBundle.usageSignals,
           });
-          
+
           await publishMetric('ai_evidence_collected', 1);
         }
       } catch (error) {
-        console.error('[AI] Evidence collection/narrative generation failed:', error);
+        logger.error('AI evidence collection or narrative generation failed', { error });
         await publishMetric('ai_error', 1);
       }
     }
@@ -317,9 +331,12 @@ export async function handler(evt:any){
             ttl: Math.floor(Date.now() / 1000) + (90 * 24 * 60 * 60) // 90 days TTL
           }
         }));
-        console.log(`📊 ML: Stored prediction for dispute ${dispute.id}: ${(evidencePackage.winProbability * 100).toFixed(1)}%`);
+        logger.info('ML prediction stored', {
+          disputeId: dispute.id,
+          winProbability: Number((evidencePackage.winProbability * 100).toFixed(1)),
+        });
       } catch (error) {
-        console.error('Failed to store ML prediction:', error);
+        logger.error('Failed to store ML prediction', { error });
       }
     }
     
@@ -344,7 +361,7 @@ export async function handler(evt:any){
     };
     
   } catch (error) {
-    console.error('Error in advanced evidence bundler, falling back to basic:', error);
+    logger.error('Error in advanced evidence bundler, falling back to basic', { error });
     
     // Fallback to basic evidence if advanced bundler fails
     const customer_name = charge?.billing_details?.name || payment_intent?.shipping?.name || '';

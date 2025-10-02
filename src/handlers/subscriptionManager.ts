@@ -3,6 +3,7 @@ import { requireAuth, verifyMerchantOwnership } from "../shared/auth.js";
 import { createAuditLog, AuditAction } from "../shared/auditLog.js";
 import { putMerchant, getCase } from "../shared/db.js";
 import Stripe from 'stripe';
+import logger from '../shared/logger';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion: '2025-07-30.basil' });
 
@@ -13,14 +14,14 @@ export async function handleSubscriptionEvent(event: any, subscriptionEvent: any
   const merchantId = event.account || subscription.metadata?.merchant_id;
   
   if (!merchantId) {
-    console.error('No merchant ID found for subscription event');
+    logger.error('No merchant ID found for subscription event');
     return;
   }
-  
+
   // Get merchant data from cases table
   const merchant = await getCase(merchantId, 'MERCHANT');
   if (!merchant) {
-    console.error(`Merchant not found: ${merchantId}`);
+    logger.error('Merchant not found for subscription event', { merchantId });
     return;
   }
   
@@ -50,7 +51,7 @@ export async function handleSubscriptionEvent(event: any, subscriptionEvent: any
       break;
       
     default:
-      console.log(`Unhandled subscription event type: ${type}`);
+      logger.warn('Unhandled subscription event type', { type });
   }
   
   // Audit the subscription event
@@ -73,7 +74,7 @@ export async function handleSubscriptionEvent(event: any, subscriptionEvent: any
 }
 
 async function handleSubscriptionCreated(merchantId: string, subscription: any) {
-  console.log(`[SUBSCRIPTION] Created for merchant ${merchantId}: ${subscription.id}`);
+  logger.info('Subscription created', { merchantId, subscriptionId: subscription.id });
   
   // Update merchant with subscription info
   await putMerchant({
@@ -94,7 +95,7 @@ async function handleSubscriptionCreated(merchantId: string, subscription: any) 
 }
 
 async function handleSubscriptionUpdated(merchantId: string, subscription: any) {
-  console.log(`[SUBSCRIPTION] Updated for merchant ${merchantId}: ${subscription.id}`);
+  logger.info('Subscription updated', { merchantId, subscriptionId: subscription.id, status: subscription.status });
   
   // Update subscription status
   await putMerchant({
@@ -116,7 +117,7 @@ async function handleSubscriptionUpdated(merchantId: string, subscription: any) 
 }
 
 async function handleSubscriptionDeleted(merchantId: string, subscription: any) {
-  console.log(`[SUBSCRIPTION] Deleted for merchant ${merchantId}: ${subscription.id}`);
+  logger.info('Subscription deleted', { merchantId, subscriptionId: subscription.id });
   
   // Mark subscription as canceled
   await putMerchant({
@@ -131,7 +132,7 @@ async function handleSubscriptionDeleted(merchantId: string, subscription: any) 
 }
 
 async function handleTrialWillEnd(merchantId: string, subscription: any) {
-  console.log(`[SUBSCRIPTION] Trial ending soon for merchant ${merchantId}: ${subscription.id}`);
+  logger.info('Subscription trial ending soon', { merchantId, subscriptionId: subscription.id });
   
   // Send notification about trial ending (implement email/notification service)
   // For now, just log it
@@ -142,7 +143,7 @@ async function handleTrialWillEnd(merchantId: string, subscription: any) {
 }
 
 async function handleSubscriptionPaused(merchantId: string, subscription: any) {
-  console.log(`[SUBSCRIPTION] Paused for merchant ${merchantId}: ${subscription.id}`);
+  logger.info('Subscription paused', { merchantId, subscriptionId: subscription.id });
   
   await putMerchant({
     merchant_id: merchantId,
@@ -156,7 +157,7 @@ async function handleSubscriptionPaused(merchantId: string, subscription: any) {
 }
 
 async function handleSubscriptionResumed(merchantId: string, subscription: any) {
-  console.log(`[SUBSCRIPTION] Resumed for merchant ${merchantId}: ${subscription.id}`);
+  logger.info('Subscription resumed', { merchantId, subscriptionId: subscription.id });
   
   await putMerchant({
     merchant_id: merchantId,
@@ -170,7 +171,7 @@ async function handleSubscriptionResumed(merchantId: string, subscription: any) 
 }
 
 async function handlePastDueSubscription(merchantId: string) {
-  console.log(`[SUBSCRIPTION] Handling past due for merchant ${merchantId}`);
+  logger.warn('Handling past due subscription', { merchantId });
   
   // Limit features for past due accounts
   await putMerchant({
@@ -181,7 +182,7 @@ async function handlePastDueSubscription(merchantId: string) {
 }
 
 async function activatePremiumFeatures(merchantId: string) {
-  console.log(`[FEATURES] Activating premium features for merchant ${merchantId}`);
+  logger.info('Activating premium features', { merchantId });
   
   await putMerchant({
     merchant_id: merchantId,
@@ -197,7 +198,7 @@ async function activatePremiumFeatures(merchantId: string) {
 }
 
 async function deactivatePremiumFeatures(merchantId: string) {
-  console.log(`[FEATURES] Deactivating premium features for merchant ${merchantId}`);
+  logger.info('Deactivating premium features', { merchantId });
   
   await putMerchant({
     merchant_id: merchantId,
@@ -249,7 +250,7 @@ export async function getSubscriptionStatus(event: any) {
           { expand: ['customer', 'default_payment_method'] }
         );
       } catch (e) {
-        console.error('Error fetching Stripe subscription:', e);
+        logger.error('Error fetching Stripe subscription', { error: e, merchantId, subscriptionId: merchant?.subscription_id });
       }
     }
     
@@ -283,7 +284,7 @@ export async function getSubscriptionStatus(event: any) {
     });
     
   } catch (error: any) {
-    console.error('Error getting subscription status:', error);
+    logger.error('Error getting subscription status', { error, merchantId });
     return bad(`Failed to get subscription status: ${error.message}`);
   }
 }
@@ -359,7 +360,7 @@ export async function cancelSubscription(event: any) {
     });
     
   } catch (error: any) {
-    console.error('Error canceling subscription:', error);
+    logger.error('Error canceling subscription', { error, merchantId });
     return bad(`Failed to cancel subscription: ${error.message}`);
   }
 }

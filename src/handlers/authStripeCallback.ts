@@ -1,6 +1,7 @@
 import { putMerchant } from "../shared/db.js";
 import Stripe from 'stripe';
 import { createAuditLog, AuditAction, auditFailure } from "../shared/auditLog.js";
+import logger from '../shared/logger';
 
 export async function handler(event:any){
   const qs = event.queryStringParameters || {};
@@ -38,7 +39,7 @@ export async function handler(event:any){
       firebase_uid = stateData.firebase_uid;
     }
   } catch (e) {
-    console.log('Could not parse state:', e);
+    logger.warn('Could not parse OAuth state', { error: e });
   }
 
   // Save all OAuth data to DynamoDB
@@ -86,7 +87,7 @@ export async function handler(event:any){
       connect: true // This makes it a Connect webhook
     });
     
-    console.log('Webhook endpoint registered:', webhookEndpoint.id);
+    logger.info('Stripe webhook endpoint registered', { webhookEndpointId: webhookEndpoint.id });
     
     // Save webhook endpoint ID
     await putMerchant({
@@ -95,7 +96,7 @@ export async function handler(event:any){
       webhook_secret: webhookEndpoint.secret
     });
   } catch (webhookError) {
-    console.error('Failed to register webhook:', webhookError);
+    logger.error('Failed to register webhook', { error: webhookError });
     // Continue even if webhook registration fails
   }
 

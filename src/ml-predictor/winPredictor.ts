@@ -1,4 +1,5 @@
 import Stripe from 'stripe';
+import logger from '../shared/logger';
 
 export interface FeatureVector {
   avs_match: boolean;
@@ -150,7 +151,7 @@ export class WinPredictor {
       try {
         charge = await this.stripe.charges.retrieve(dispute.charge as string);
       } catch (error) {
-        console.error('Failed to retrieve charge:', error);
+        logger.error('Failed to retrieve charge for win predictor', { error, disputeId: dispute.id });
       }
     }
     
@@ -270,7 +271,7 @@ export class WinPredictor {
         return Math.floor(customerAge / 86400);
       }
     } catch (error) {
-      console.error('Failed to get customer history:', error);
+      logger.error('Failed to get customer history for win predictor', { error, customerId: charge?.customer });
     }
     
     return 0;
@@ -290,7 +291,7 @@ export class WinPredictor {
         charge.customer
       ).length;
     } catch (error) {
-      console.error('Failed to get previous disputes:', error);
+      logger.error('Failed to get previous disputes', { error, customerId: charge?.customer });
     }
     
     return 0;
@@ -307,7 +308,7 @@ export class WinPredictor {
       
       return charges.data.reduce((total, c) => total + c.amount, 0);
     } catch (error) {
-      console.error('Failed to get total spent:', error);
+      logger.error('Failed to get total spent', { error, customerId: charge?.customer });
     }
     
     return 0;
@@ -335,7 +336,7 @@ export class WinPredictor {
       return 86400 / avgInterval;
       
     } catch (error) {
-      console.error('Failed to get transaction frequency:', error);
+      logger.error('Failed to get transaction frequency', { error, customerId: charge?.customer });
     }
     
     return 0;
@@ -450,7 +451,7 @@ export class WinPredictor {
   }
   
   async trainModel(historicalDisputes: Stripe.Dispute[]): Promise<ModelConfig> {
-    console.log(`Training model with ${historicalDisputes.length} disputes...`);
+    logger.info(`Training model with ${historicalDisputes.length} disputes...`);
     
     this.modelConfig.lastTrainedAt = new Date();
     this.modelConfig.version = `1.0.${Date.now()}`;

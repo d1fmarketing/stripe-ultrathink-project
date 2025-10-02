@@ -16,6 +16,7 @@ import { ddb } from "../shared/ddb.js";
 import { PutCommand, GetCommand } from "@aws-sdk/lib-dynamodb";
 import { FeatureExtractor } from '../ml-predictor/featureExtractor';
 import { FeedbackLoop } from '../ml/feedbackLoop';
+import logger from '../shared/logger';
 
 // ML Enhancement Imports (Safe - with fallbacks)
 let patternCache: any = null;
@@ -26,27 +27,27 @@ let modelUpdater: any = null;
 if (process.env.ENABLE_PATTERN_CACHE === 'true') {
   try {
     patternCache = require('../cache/patternCache').patternCache;
-    console.log('✅ Webhook: Pattern cache ML enabled');
+    logger.info('Webhook pattern cache ML enabled');
   } catch (e) {
-    console.log('Webhook: Pattern cache not available');
+    logger.warn('Webhook pattern cache not available', { error: e });
   }
 }
 
 if (process.env.ENABLE_SCORE_CACHE === 'true') {
   try {
     scoreCache = require('../cache/scoreCache').scoreCache;
-    console.log('✅ Webhook: Score cache ML enabled');
+    logger.info('Webhook score cache ML enabled');
   } catch (e) {
-    console.log('Webhook: Score cache not available');
+    logger.warn('Webhook score cache not available', { error: e });
   }
 }
 
 if (process.env.ENABLE_MODEL_UPDATER === 'true') {
   try {
     modelUpdater = require('../ml/modelUpdater').modelUpdater;
-    console.log('✅ Webhook: Model updater ML enabled');
+    logger.info('Webhook model updater ML enabled');
   } catch (e) {
-    console.log('Webhook: Model updater not available');
+    logger.warn('Webhook model updater not available', { error: e });
   }
 }
 
@@ -68,7 +69,7 @@ async function publishMetric(name: string, value: number, unit: string = 'Count'
       }]
     });
   } catch (error) {
-    console.error('Failed to publish metric:', name, error);
+    logger.error('Failed to publish webhook metric', { metric: name, error });
   }
 }
 
@@ -84,7 +85,7 @@ async function isEventProcessed(eventId: string): Promise<boolean> {
     }));
     return !!result.Item;
   } catch (error) {
-    console.error('Error checking event idempotency:', error);
+    logger.error('Error checking webhook idempotency', { error, eventId });
     return false;
   }
 }
@@ -104,7 +105,7 @@ async function markEventProcessed(eventId: string, eventType: string): Promise<v
       }
     }));
   } catch (error) {
-    console.error('Error marking event as processed:', error);
+    logger.error('Error marking event as processed', { error, eventId, eventType });
   }
 }
 
@@ -120,20 +121,20 @@ export async function handler(event:any){
     : process.env.STRIPE_WEBHOOK_SECRET || 'whsec_test';
   
   if (!webhookSecret || webhookSecret === 'whsec_test') {
-    console.warn('Using test webhook secret - configure STRIPE_WEBHOOK_SECRET for production');
+    logger.warn('Using test webhook secret - configure STRIPE_WEBHOOK_SECRET for production');
   }
   
   let evt: Stripe.Event;
   try{
     evt = stripe.webhooks.constructEvent(rawBody, sig!, webhookSecret);
   }catch(e:any){
-    console.error(`Webhook signature verification failed for account ${account}:`, e.message);
+    logger.error('Webhook signature verification failed', { account, error: e });
     return { statusCode:400, body:`bad sig: ${e.message}` };
   }
 
   // Check idempotency - prevent duplicate processing
   if (await WebhookIdempotencyService.isDuplicate(evt.id)) {
-    console.log(`Event ${evt.id} already processed, skipping`);
+    logger.info('Duplicate webhook event skipped', { eventId: evt.id });
     return { statusCode: 200, body: 'duplicate event ignored' };
   }
 
@@ -161,9 +162,9 @@ export async function handler(event:any){
           updated_at: new Date().toISOString()
         });
         
-        console.log('Subscription linked to user:', session.client_reference_id);
+        logger.info('Subscription linked to user', { firebaseUid: session.client_reference_id });
       } catch (error) {
-        console.error('Failed to link subscription:', error);
+        logger.error('Failed to link subscription', { error, firebaseUid: session.client_reference_id });
       }
     }
     
@@ -180,7 +181,7 @@ export async function handler(event:any){
       const customer_email = subscription.metadata?.email;
       
       if(!firebase_uid){
-        console.warn('Subscription event without firebase_uid:', subscription.id);
+        logger.warn('Subscription event without firebase_uid', { subscriptionId: subscription.id });
         await WebhookIdempotencyService.markProcessed(evt.id, { type: evt.type });
         return { statusCode: 200, body: 'subscription ignored - no user link' };
       }
@@ -213,7 +214,7 @@ export async function handler(event:any){
           
         case 'customer.subscription.trial_will_end':
           // Send notification 3 days before trial ends
-          console.log('Trial ending soon for user:', firebase_uid);
+          logger.info('Trial ending soon for user', { firebaseUid: firebase_uid });
           // TODO: Send email notification
           break;
           
@@ -265,17 +266,22 @@ export async function handler(event:any){
         type: 'subscription_history'
       });
       
-      console.log(`Subscription ${action} for user ${firebase_uid}: ${subscription.status} (access: ${userAccess})`);
+      logger.info('Subscription event processed', {
+        action,
+        firebaseUid: firebase_uid,
+        status: subscription.status,
+        userAccess,
+      });
       
       // Handle payment failure notifications
       if(subscription.status === 'unpaid' || subscription.status === 'past_due') {
-        console.log('Payment failed for subscription:', subscription.id);
+        logger.warn('Payment failure for subscription', { subscriptionId: subscription.id });
         // TODO: Send payment failure email
         // TODO: Grace period logic
       }
-      
+
     } catch (error) {
-      console.error('Failed to process subscription event:', error);
+      logger.error('Failed to process subscription event', { error, subscriptionId: subscription.id });
       // Still mark as processed to avoid retries
     }
     
@@ -288,7 +294,7 @@ export async function handler(event:any){
     const invoice = evt.data.object as Stripe.Invoice;
     
     if((invoice as any).subscription && (invoice as any).billing_reason === 'subscription_cycle'){
-      console.log('Subscription payment failed:', (invoice as any).subscription);
+      logger.warn('Subscription payment failed', { subscriptionId: (invoice as any).subscription });
       
       // Update subscription status
       const subscription_id = typeof (invoice as any).subscription === 'string' ? 
@@ -328,12 +334,12 @@ export async function handler(event:any){
             merchantWinRate // REAL data from database
           });
           
-          console.log('[AI] Dispute Analysis:', {
+          logger.info('AI dispute analysis complete', {
             disputeId: dispute.id,
             weaknesses: aiAnalysis.weaknesses.length,
             bestEvidence: aiAnalysis.bestEvidence.length,
             riskLevel: aiAnalysis.riskLevel,
-            estimatedWinProbability: aiAnalysis.estimatedWinProbability
+            estimatedWinProbability: aiAnalysis.estimatedWinProbability,
           });
           
           // Publish metrics
@@ -343,7 +349,7 @@ export async function handler(event:any){
           }
           
         } catch (error) {
-          console.error('[AI] Analysis failed:', error);
+          logger.error('AI dispute analysis failed', { error, disputeId: dispute.id });
           await publishMetric('ai_error', 1);
         }
       }
@@ -383,7 +389,7 @@ export async function handler(event:any){
     
     // NEW: Automatic ML data collection for resolved disputes
     if (evt.type === 'charge.dispute.updated' && ['won', 'lost', 'warning_closed'].includes(dispute.status)) {
-      console.log(`📊 ML: Dispute ${dispute.id} resolved as ${dispute.status}`);
+      logger.info('ML dispute resolution captured', { disputeId: dispute.id, status: dispute.status });
       
       try {
         // 1. Extract all features (34+ features)
@@ -441,11 +447,13 @@ export async function handler(event:any){
           (1 - originalPrediction) : originalPrediction;
         await publishMetric('MLPredictionError', predictionError * 100, 'Percent');
         
-        console.log(`✅ ML: Training data collected for ${dispute.id}`);
-        console.log(`   - Features extracted: ${Object.keys(features).length}`);
-        console.log(`   - Original prediction: ${(originalPrediction * 100).toFixed(1)}%`);
-        console.log(`   - Actual outcome: ${dispute.status}`);
-        console.log(`   - Prediction error: ${(predictionError * 100).toFixed(1)}%`);
+        logger.info('ML training data collected', {
+          disputeId: dispute.id,
+          featureCount: Object.keys(features).length,
+          originalPrediction: Number((originalPrediction * 100).toFixed(1)),
+          actualOutcome: dispute.status,
+          predictionError: Number((predictionError * 100).toFixed(1)),
+        });
         
         // 6. Update pattern cache with outcome (Safe - with fallback)
         if (patternCache && process.env.ENABLE_PATTERN_CACHE === 'true') {
@@ -462,10 +470,10 @@ export async function handler(event:any){
             // Update pattern with actual outcome
             const won = dispute.status === 'won';
             await patternCache.update(patternKey, won);
-            console.log(`⚡ ML: Pattern cache updated with ${won ? 'WIN' : 'LOSS'} outcome`);
+            logger.info('Pattern cache updated with outcome', { disputeId: dispute.id, won });
             await publishMetric('ml_pattern_cache_updated', 1);
           } catch (error) {
-            console.log('Failed to update pattern cache:', error);
+            logger.warn('Failed to update pattern cache', { error, disputeId: dispute.id });
           }
         }
         
@@ -474,10 +482,10 @@ export async function handler(event:any){
           try {
             const actualScore = dispute.status === 'won' ? 1.0 : 0.0;
             await scoreCache.updateWithOutcome(dispute.id, actualScore);
-            console.log(`📊 ML: Score cache updated with actual outcome: ${actualScore}`);
+            logger.info('Score cache updated with actual outcome', { disputeId: dispute.id, actualScore });
             await publishMetric('ml_score_cache_validated', 1);
           } catch (error) {
-            console.log('Failed to update score cache:', error);
+            logger.warn('Failed to update score cache', { error, disputeId: dispute.id });
           }
         }
         
@@ -486,17 +494,17 @@ export async function handler(event:any){
           try {
             const shouldUpdate = await modelUpdater.checkUpdateThreshold();
             if (shouldUpdate) {
-              console.log('🚀 ML: Triggering model update based on new training data');
+              logger.info('Triggering model update based on new training data');
               await modelUpdater.triggerUpdate();
               await publishMetric('ml_model_update_triggered', 1);
             }
           } catch (error) {
-            console.log('Failed to check model update threshold:', error);
+            logger.warn('Failed to check model update threshold', { error });
           }
         }
-        
+
       } catch (error) {
-        console.error('❌ ML: Failed to collect training data:', error);
+        logger.error('ML training data collection failed', { error, disputeId: dispute.id });
         await publishMetric('MLDataCollectionError', 1);
       }
     }

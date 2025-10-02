@@ -6,6 +6,7 @@
 
 import { cache, redis } from './redisClient';
 import crypto from 'crypto';
+import logger from '../shared/logger';
 
 export interface FraudIndicator {
   customerId?: string;
@@ -122,7 +123,11 @@ export class FraudTracker {
       await this.publishFraudAlert(profile, indicator);
     }
     
-    console.log(`🚨 Fraud tracked: ${profileId} - Risk: ${profile.risk_score} - Disputes: ${profile.total_disputes}`);
+    logger.warn('Fraud tracked', {
+      profileId,
+      riskScore: profile.risk_score,
+      totalDisputes: profile.total_disputes,
+    });
     
     return profile;
   }
@@ -343,7 +348,11 @@ export class FraudTracker {
         await redis.sadd(`${this.NETWORK_PREFIX}members:${profile.id}`, entityId);
       }
       
-      console.log(`🕸️ Fraud network detected! Size: ${network.network_size}, Risk: ${network.risk_level}`);
+      logger.warn('Fraud network detected', {
+        networkSize: network.network_size,
+        riskLevel: network.risk_level,
+        primaryId: profile.id,
+      });
       
       return network;
     }
@@ -378,7 +387,7 @@ export class FraudTracker {
       Date.now().toString()
     );
     
-    console.log(`⛔ Entity blacklisted: ${profileId} - Reason: ${reason}`);
+    logger.warn('Entity blacklisted', { profileId, reason });
   }
   
   /**
@@ -499,6 +508,10 @@ export const fraudTracker = FraudTracker.getInstance();
 setInterval(async () => {
   const stats = await fraudTracker.getFraudStats();
   if (stats.blacklisted > 0) {
-    console.log(`🚨 Fraud Stats - Blacklisted: ${stats.blacklisted} | High Risk: ${stats.high_risk} | Prevented: $${stats.amount_saved}`);
+    logger.info('Fraud stats snapshot', {
+      blacklisted: stats.blacklisted,
+      highRisk: stats.high_risk,
+      amountSaved: stats.amount_saved,
+    });
   }
 }, 300000); // Every 5 minutes

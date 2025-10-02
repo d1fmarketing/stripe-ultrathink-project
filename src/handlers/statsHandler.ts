@@ -1,6 +1,7 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { DynamoDBClient, ScanCommand, QueryCommand } from '@aws-sdk/client-dynamodb';
 import Redis from 'ioredis';
+import logger from '../shared/logger';
 
 const dynamodb = new DynamoDBClient({ region: 'us-east-1' });
 const CASES_TABLE = process.env.CASES_TABLE || 'chargeback-autopilot-stripe-prod-CasesTable-1LPIUKCN82FYI';
@@ -49,10 +50,10 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       if (cachedStats) {
         stats = JSON.parse(cachedStats);
         stats.dataSource = 'cache';
-        console.log('Returning cached stats');
+        logger.info('Returning cached stats');
       }
     } catch (error) {
-      console.log('Redis cache miss or error, querying database:', error);
+      logger.warn('Redis cache miss or error, querying database', { error });
     }
     
     // If no cache, query DynamoDB
@@ -139,9 +140,9 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       if (redis) {
         try {
           await redis.setex('stats:global', CACHE_TTL, JSON.stringify(stats));
-          console.log('Stats cached for 5 minutes');
+          logger.info('Stats cached', { ttlSeconds: CACHE_TTL });
         } catch (error) {
-          console.log('Failed to cache stats:', error);
+          logger.warn('Failed to cache stats', { error });
         }
       }
     }
@@ -152,7 +153,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     }
     
     const processingTime = Date.now() - startTime;
-    console.log(`Stats endpoint processed in ${processingTime}ms`);
+    logger.info('Stats endpoint processed', { durationMs: processingTime });
     
     return {
       statusCode: 200,
@@ -165,7 +166,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     };
     
   } catch (error) {
-    console.error('Error in stats handler:', error);
+    logger.error('Error in stats handler', { error });
     
     // Return default stats on error
     const defaultStats: StatsResponse = {

@@ -1,6 +1,7 @@
 import { ScanCommand } from "@aws-sdk/lib-dynamodb";
 import { ddb } from "../shared/ddb.js";
 import { putMerchant } from "../shared/db.js";
+import logger from '../shared/logger';
 
 /**
  * Scheduled Lambda to refresh OAuth tokens before they expire
@@ -18,7 +19,7 @@ export async function handler(event: any) {
     }));
     
     const merchants = scanResult.Items || [];
-    console.log(`Found ${merchants.length} merchants with OAuth tokens`);
+    logger.info('Merchants with OAuth tokens found', { count: merchants.length });
     
     const results = {
       checked: merchants.length,
@@ -40,7 +41,7 @@ export async function handler(event: any) {
         
         // Stripe OAuth tokens typically last 90 days, refresh after 89 days
         if (hoursSinceRefresh > (89 * 24)) {
-          console.log(`Refreshing token for merchant ${merchant.merchant_id}`);
+          logger.info('Refreshing merchant OAuth token', { merchantId: merchant.merchant_id });
           
           // Refresh the token
           const body = new URLSearchParams({
@@ -67,19 +68,19 @@ export async function handler(event: any) {
             });
             
             results.refreshed++;
-            console.log(`Successfully refreshed token for ${merchant.merchant_id}`);
+            logger.info('Token refreshed successfully', { merchantId: merchant.merchant_id });
           } else {
             throw new Error(json.error_description || json.error || 'Unknown error');
           }
         }
       } catch (error: any) {
-        console.error(`Failed to refresh token for ${merchant.merchant_id}:`, error);
+        logger.error('Failed to refresh token', { merchantId: merchant.merchant_id, error });
         results.failed++;
         results.errors.push(`${merchant.merchant_id}: ${error.message}`);
       }
     }
-    
-    console.log('Token refresh results:', results);
+
+    logger.info('Token refresh summary', results);
     
     return {
       statusCode: 200,
@@ -87,7 +88,7 @@ export async function handler(event: any) {
     };
     
   } catch (error: any) {
-    console.error('Auto refresh error:', error);
+    logger.error('Auto refresh error', { error });
     return {
       statusCode: 500,
       body: JSON.stringify({ error: error.message })

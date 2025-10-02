@@ -1,6 +1,7 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
+import logger from '../shared/logger';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'stripedshield-demo-secret-2025';
 const JWT_EXPIRY = '7d'; // 7 days validity
@@ -114,7 +115,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
         }
       );
 
-      console.log(`Demo login successful for ${email}`);
+      logger.info('Demo login successful', { email });
 
       const response: LoginResponse = {
         success: true,
@@ -164,7 +165,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
         }
       );
 
-      console.log(`Login successful for ${email}`);
+      logger.info('Login successful', { email });
 
       const response: LoginResponse = {
         success: true,
@@ -197,8 +198,8 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     };
 
   } catch (error) {
-    console.error('Error in auth login handler:', error);
-    
+    logger.error('Error in auth login handler', { error });
+
     return {
       statusCode: 500,
       headers,

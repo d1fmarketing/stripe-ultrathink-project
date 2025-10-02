@@ -7,6 +7,7 @@
 import { cache, redis } from './redisClient';
 import { Features, Prediction } from '../ai/winPredictor';
 import crypto from 'crypto';
+import logger from '../shared/logger';
 
 export interface CachedScore {
   disputeId: string;
@@ -86,7 +87,10 @@ export class ScoreCache {
         
         // Check if cache is still valid
         if (Date.now() - cached.timestamp < cached.ttl * 1000) {
-          console.log(`⚡ SCORE CACHE HIT! Score: ${cached.score.toFixed(2)} (${Date.now() - startTime}ms)`);
+          logger.debug('Score cache hit', {
+            score: cached.score,
+            durationMs: Date.now() - startTime,
+          });
           return cached;
         }
       }
@@ -96,7 +100,7 @@ export class ScoreCache {
       return null;
       
     } catch (error) {
-      console.error('Score cache error:', error);
+      logger.error('Score cache error', { error });
       return null;
     }
   }
@@ -144,7 +148,10 @@ export class ScoreCache {
     // Manage cache size (LRU eviction)
     await this.manageCacheSize();
     
-    console.log(`💾 Score cached: ${prediction.score.toFixed(2)} for pattern ${cacheKey}`);
+    logger.debug('Score cached', {
+      score: prediction.score,
+      cacheKey,
+    });
   }
   
   /**
@@ -180,7 +187,7 @@ export class ScoreCache {
     }
     
     await pipeline.exec();
-    console.log(`💾 Batch cached ${items.length} scores`);
+    logger.debug('Batch cached scores', { count: items.length });
   }
   
   /**
@@ -215,13 +222,13 @@ export class ScoreCache {
    * Pre-load frequently seen dispute patterns
    */
   async warmCache(patterns: Array<{ features: Features; prediction: Prediction }>): Promise<void> {
-    console.log(`🔥 Warming score cache with ${patterns.length} patterns...`);
+    logger.info('Warming score cache', { patternCount: patterns.length });
     
     for (const pattern of patterns) {
       await this.cacheScore(pattern.features, pattern.prediction);
     }
     
-    console.log('✅ Score cache warmed');
+    logger.info('Score cache warmed');
   }
   
   /**
@@ -247,7 +254,7 @@ export class ScoreCache {
       await redis.del(...keys);
     }
     await redis.del('scores:distribution');
-    console.log(`🗑️ Cleared ${keys.length} cached scores`);
+    logger.warn('Cleared cached scores', { count: keys.length });
   }
   
   // Private helper methods
@@ -290,7 +297,7 @@ export class ScoreCache {
         const keysToDelete = oldestKeys.map(k => `${this.SCORE_PREFIX}${k}`);
         await redis.del(...keysToDelete);
         await redis.zrem('scores:distribution', ...oldestKeys);
-        console.log(`🗑️ Evicted ${oldestKeys.length} old cache entries`);
+        logger.warn('Evicted cache entries', { count: oldestKeys.length });
       }
     }
   }
@@ -329,5 +336,10 @@ export const scoreCache = ScoreCache.getInstance();
 // Performance monitoring
 setInterval(async () => {
   const stats = await scoreCache.getRealtimeStats();
-  console.log(`📊 Cache Stats - Hit Rate: ${stats.hitRate.toFixed(1)}% | Avg Response: ${stats.avgResponseTime.toFixed(1)}ms | Size: ${stats.cacheSize} | Memory: ${stats.memoryUsage}`);
+  logger.info('Cache stats', {
+    hitRate: Number(stats.hitRate.toFixed(1)),
+    avgResponseMs: Number(stats.avgResponseTime.toFixed(1)),
+    size: stats.cacheSize,
+    memoryUsage: stats.memoryUsage,
+  });
 }, 60000); // Log every minute
