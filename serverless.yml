@@ -267,12 +267,6 @@ functions:
           path: '/disputes'
           method: options
   
-  debugRedis:
-    handler: src/handlers/debugRedis.handler
-    memorySize: 1024
-    timeout: 10
-    events: [{ httpApi: { path: '/debug/redis', method: get } }]
-  
   subscriptionStatus:
     handler: src/handlers/subscriptionManager.getSubscriptionStatus
     memorySize: 1024
