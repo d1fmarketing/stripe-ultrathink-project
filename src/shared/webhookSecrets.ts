@@ -1,6 +1,7 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, GetCommand } from '@aws-sdk/lib-dynamodb';
 import { SSMClient, GetParameterCommand } from '@aws-sdk/client-ssm';
+import { decryptString, encryptString } from './encryption.js';
 
 const client = new DynamoDBClient({});
 const ddb = DynamoDBDocumentClient.from(client);
@@ -24,7 +25,11 @@ export async function getMerchantWebhookSecret(merchantId: string): Promise<stri
     
     if (result.Item?.webhook_secret) {
       console.log(`[WEBHOOK] Using merchant-specific webhook secret for ${merchantId}`);
-      return result.Item.webhook_secret;
+      const storedSecret = result.Item.webhook_secret;
+      if (typeof storedSecret === 'string') {
+        return decryptString(storedSecret);
+      }
+      console.warn('[WEBHOOK] Webhook secret is not a string, ignoring merchant-specific value');
     }
     
     // If no merchant-specific secret, check for endpoint ID and construct
@@ -120,6 +125,8 @@ export async function storeWebhookSecret(
   const { UpdateCommand } = await import('@aws-sdk/lib-dynamodb');
   
   try {
+    const encryptedSecret = encryptString(webhookSecret);
+
     await ddb.send(new UpdateCommand({
       TableName: MERCHANTS_TABLE,
       Key: {
@@ -127,7 +134,7 @@ export async function storeWebhookSecret(
       },
       UpdateExpression: 'SET webhook_secret = :secret, webhook_endpoint_id = :endpoint, webhook_secret_updated = :now',
       ExpressionAttributeValues: {
-        ':secret': webhookSecret,
+        ':secret': encryptedSecret,
         ':endpoint': webhookEndpointId || null,
         ':now': new Date().toISOString()
       }

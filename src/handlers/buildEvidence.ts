@@ -204,7 +204,7 @@ export async function handler(evt:any){
     // Apply ML optimizations if available
     if (mlOptimizedEvidence && fraudDetected) {
       console.log('🚨 ML: Fraud detected, adding extra verification evidence');
-      evidencePackage.fraudWarning = true;
+      (evidencePackage as Record<string, any>).fraudWarning = true;
     }
     
     // Extract the evidence object for Stripe submission

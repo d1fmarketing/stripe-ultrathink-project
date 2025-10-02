@@ -94,7 +94,10 @@ OPENAI_API_KEY=sk-proj-***
 AI_MODEL=gpt-5
 AI_ENABLED=true
 REDIS_URL=redis://stripedshield-redis.mot6cw.0001.use1.cache.amazonaws.com:6379
+ENCRYPTION_KEY=$(openssl rand -base64 32)
 ```
+
+> **Security**: `ENCRYPTION_KEY` must decode to 32 bytes. Use a strong, randomly generated value (Base64 or hex). It is required to encrypt Stripe OAuth tokens and webhook secrets before they are stored.
 
 ## 📈 Performance Metrics
 
