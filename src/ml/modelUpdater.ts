@@ -445,22 +445,61 @@ export class ModelUpdater {
    * Activate new model version
    */
   private async activateModel(version: ModelVersion): Promise<void> {
-    // Archive current version
-    if (this.currentVersion) {
-      await this.archiveVersion(this.currentVersion);
+    const previousVersion = this.currentVersion
+      ? ({ ...this.currentVersion } as ModelVersion)
+      : null;
+
+    try {
+      // Prepare caches for the new model before committing any state
+      await scoreCache.clearCache();
+      await this.warmCacheWithNewModel(version);
+
+      // Archive current version for history/rollback and persist the new one atomically
+      if (previousVersion) {
+        await this.archiveVersion(previousVersion);
+      }
+
+      await this.saveModelVersion(version);
+      this.currentVersion = version;
+
+      console.log(`🚀 Model v${version.version} activated - Win Rate: ${version.performance.winRate}%`);
+    } catch (error) {
+      console.error(`❌ Failed to activate model v${version.version}:`, error);
+
+      try {
+        await cache.zrem('model:versions:timeline', version.version);
+      } catch (cleanupError) {
+        console.error('Failed to remove failed model version from timeline:', cleanupError);
+      }
+
+      if (!previousVersion) {
+        this.currentVersion = null;
+        try {
+          await cache.del(this.MODEL_VERSION_KEY);
+        } catch (resetError) {
+          console.error('Failed to clear current model pointer after activation failure:', resetError);
+        }
+        throw error;
+      }
+
+      this.currentVersion = previousVersion;
+
+      try {
+        await this.saveModelVersion(previousVersion);
+      } catch (restoreError) {
+        console.error('Failed to restore previous model version state:', restoreError);
+      }
+
+      try {
+        await scoreCache.clearCache();
+        await this.warmCacheWithNewModel(previousVersion);
+      } catch (cacheError) {
+        console.error('Failed to restore cache after rollback:', cacheError);
+      }
+
+      console.log(`⏪ Rolled back to model v${previousVersion.version} after activation failure`);
+      throw error;
     }
-    
-    // Set as current version
-    this.currentVersion = version;
-    await this.saveModelVersion(version);
-    
-    // Clear score cache to force recalculation with new model
-    await scoreCache.clearCache();
-    
-    // Warm cache with common patterns using new model
-    await this.warmCacheWithNewModel(version);
-    
-    console.log(`🚀 Model v${version.version} activated - Win Rate: ${version.performance.winRate}%`);
   }
   
   /**
