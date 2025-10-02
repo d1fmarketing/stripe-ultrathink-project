@@ -4,7 +4,7 @@ import { upsertCase } from "../shared/db.js";
 import { getMerchantWinRate } from "../shared/db-helpers.js";
 import { handleSubscriptionEvent } from "./subscriptionManager.js";
 import { WebhookIdempotencyService } from "../shared/webhookIdempotency.js";
-import { getMerchantWebhookSecret, validateWebhookSignature } from "../shared/webhookSecrets.js";
+import { validateWebhookSignature } from "../shared/webhookSecrets.js";
 import { 
   analyzeDispute, 
   quickAssessRisk,
@@ -110,25 +110,26 @@ async function markEventProcessed(eventId: string, eventType: string): Promise<v
 
 export async function handler(event:any){
   const sig = event.headers['stripe-signature'] || event.headers['Stripe-Signature'];
-  const rawBody = event.body;
   const account = (event.headers['stripe-account'] || event.headers['Stripe-Account']) as string | undefined;
-  
-  // Get the webhook secret from environment variable
-  // For production, use different secrets for account vs platform webhooks
-  const webhookSecret = account 
-    ? process.env.STRIPE_CONNECT_WEBHOOK_SECRET || process.env.STRIPE_WEBHOOK_SECRET || 'whsec_test'
-    : process.env.STRIPE_WEBHOOK_SECRET || 'whsec_test';
-  
-  if (!webhookSecret || webhookSecret === 'whsec_test') {
-    console.warn('Using test webhook secret - configure STRIPE_WEBHOOK_SECRET for production');
+  const rawBody = event.isBase64Encoded ? Buffer.from(event.body, 'base64') : event.body;
+
+  if (!rawBody) {
+    console.error('Missing webhook payload');
+    return { statusCode: 400, body: 'missing payload' };
   }
-  
+
+  if (!sig) {
+    console.error('Missing Stripe-Signature header');
+    return { statusCode: 400, body: 'missing signature' };
+  }
+
   let evt: Stripe.Event;
-  try{
-    evt = stripe.webhooks.constructEvent(rawBody, sig!, webhookSecret);
-  }catch(e:any){
-    console.error(`Webhook signature verification failed for account ${account}:`, e.message);
-    return { statusCode:400, body:`bad sig: ${e.message}` };
+  try {
+    evt = await validateWebhookSignature(rawBody, sig, account);
+  } catch (e: any) {
+    const message = e?.message || 'unknown error';
+    console.error(`Webhook signature verification failed for account ${account || 'platform'}:`, e);
+    return { statusCode: 400, body: `bad sig: ${message}` };
   }
 
   // Check idempotency - prevent duplicate processing
