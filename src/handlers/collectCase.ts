@@ -2,10 +2,11 @@ import { bad } from "../shared/responses.js";
 import { requireAuth, verifyMerchantOwnership } from "../shared/auth.js";
 import { createAuditLog, AuditAction } from "../shared/auditLog.js";
 import { StartExecutionCommand, SFNClient as StepFunctionsClient } from "@aws-sdk/client-sfn";
+import { withRequestLogging } from "../shared/logger.js";
 
 const sfn = new StepFunctionsClient({});
 
-export async function handler(event:any){
+export const handler = withRequestLogging(async (event:any) => {
   // REQUIRE AUTHENTICATION
   const authResult = await requireAuth(event);
   if ('statusCode' in authResult) {
@@ -34,4 +35,4 @@ export async function handler(event:any){
   }));
 
   return { statusCode:202, body:'started' };
-}
+});

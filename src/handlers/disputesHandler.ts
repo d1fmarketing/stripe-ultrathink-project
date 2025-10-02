@@ -3,6 +3,7 @@ import { requireAuth, verifyMerchantOwnership } from '../shared/auth.js';
 import { listCases } from '../shared/db.js';
 import { validationMiddleware, commonSchemas } from '../shared/validation.js';
 import Stripe from 'stripe';
+import { setCorrelationContext, withRequestLogging } from '../shared/logger.js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion: '2025-07-30.basil' });
 
@@ -29,7 +30,7 @@ interface Dispute {
 
 // Now using REAL Stripe data - no more mocks!
 
-export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+export const handler = withRequestLogging(async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   const startTime = Date.now();
   
   // CORS headers
@@ -79,6 +80,8 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
         body: JSON.stringify({ error: 'No merchant account specified or connected' })
       };
     }
+
+    setCorrelationContext({ merchantId });
     
     // VERIFY USER OWNS THIS MERCHANT ACCOUNT
     const hasAccess = await verifyMerchantOwnership(authContext, merchantId);
@@ -168,4 +171,4 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       })
     };
   }
-};
+});

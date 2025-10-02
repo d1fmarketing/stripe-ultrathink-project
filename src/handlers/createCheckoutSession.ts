@@ -1,16 +1,21 @@
 import Stripe from 'stripe';
 import { ok, bad } from "../shared/responses.js";
 import { requireAuth } from "../shared/auth.js";
+import { setCorrelationContext, withRequestLogging } from "../shared/logger.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion: '2025-07-30.basil' });
 
-export async function handler(event: any) {
+export const handler = withRequestLogging(async (event: any) => {
   // Get auth context if user is logged in (optional for checkout)
   let authContext = null;
   try {
     const authResult = await requireAuth(event);
     if (!('statusCode' in authResult)) {
       authContext = authResult;
+      const merchantId = authContext.merchant_id || authContext.stripe_account_id;
+      if (merchantId) {
+        setCorrelationContext({ merchantId });
+      }
     }
   } catch (e) {
     // User not logged in, that's okay for checkout
@@ -78,4 +83,4 @@ export async function handler(event: any) {
     console.error('Checkout session error:', error);
     return bad(error.message);
   }
-}
+});

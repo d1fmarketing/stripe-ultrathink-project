@@ -1,13 +1,16 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { getRedisClient } from '../cache/redisConnection';
 import { DynamoDBClient, ScanCommand } from '@aws-sdk/client-dynamodb';
+import { setCorrelationContext, withRequestLogging } from '../shared/logger.js';
 
 /**
  * Metrics endpoint for StripedShield
  * Returns performance metrics and win rate statistics
  */
-export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+export const handler = withRequestLogging(async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   const startTime = Date.now();
+
+  setCorrelationContext({ merchantId: 'system' });
   
   try {
     // Get Redis client from connection manager
@@ -178,4 +181,4 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       })
     };
   }
-};
+});

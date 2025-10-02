@@ -1,18 +1,23 @@
 import { ok, bad } from "../shared/responses.js";
 import { listCases } from "../shared/db.js";
 import { requireAuth } from "../shared/auth.js";
+import { setCorrelationContext, withRequestLogging } from "../shared/logger.js";
 
 /**
  * Get disputes for the authenticated user only
  * No merchant parameter needed - uses user's own merchant account
  */
-export async function handler(event: any) {
+export const handler = withRequestLogging(async (event: any) => {
   // REQUIRE AUTHENTICATION
   const authResult = await requireAuth(event);
   if ('statusCode' in authResult) {
     return authResult; // Return 401 if not authenticated
   }
   const authContext = authResult;
+
+  if (authContext.merchant_id) {
+    setCorrelationContext({ merchantId: authContext.merchant_id });
+  }
   
   // Check if user has a connected Stripe account
   if (!authContext.merchant_id) {
@@ -64,4 +69,4 @@ export async function handler(event: any) {
     console.error('Error fetching user disputes:', error);
     return bad('Failed to fetch disputes: ' + error.message);
   }
-}
+});

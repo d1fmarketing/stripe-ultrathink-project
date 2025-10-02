@@ -1,6 +1,7 @@
 import admin from 'firebase-admin';
 import { GetCommand } from "@aws-sdk/lib-dynamodb";
 import { ddb } from "./ddb.js";
+import { setCorrelationContext } from "./logger.js";
 
 // Initialize Firebase Admin SDK
 let firebaseApp: admin.app.App | null = null;
@@ -71,13 +72,20 @@ export async function validateAuth(authHeader: string | undefined): Promise<Auth
       console.log('No merchant record for user:', decodedToken.uid);
     }
     
-    return {
+    const authContext = {
       uid: decodedToken.uid,
       email: decodedToken.email || '',
       merchant_id: merchantInfo?.merchant_id,
       stripe_account_id: merchantInfo?.stripe_account_id,
       firebase_token: token
     };
+
+    const merchantIdentifier = authContext.stripe_account_id || authContext.merchant_id;
+    if (merchantIdentifier) {
+      setCorrelationContext({ merchantId: merchantIdentifier });
+    }
+
+    return authContext;
   } catch (error) {
     console.error('Auth validation error:', error);
     return null;

@@ -1,5 +1,6 @@
 import { DynamoDBClient, GetItemCommand } from "@aws-sdk/client-dynamodb";
 import { getRedisClient, isRedisReady } from "../cache/redisConnection";
+import { setCorrelationContext, withRequestLogging } from "../shared/logger.js";
 
 const dynamo = new DynamoDBClient({});
 
@@ -9,10 +10,12 @@ const withTimeout = <T>(p: Promise<T>, ms = 350) =>
     new Promise<never>((_, rej) => setTimeout(() => rej(new Error("timeout")), ms))
   ]);
 
-export const handler = async (_evt: any, ctx: any) => {
+export const handler = withRequestLogging(async (_evt: any, ctx: any) => {
   if (ctx && typeof ctx === 'object') {
     ctx.callbackWaitsForEmptyEventLoop = false;
   }
+
+  setCorrelationContext({ merchantId: 'system' });
 
   const checks: any = { redis: {}, dynamo: {} };
   let degraded = false;
@@ -67,4 +70,4 @@ export const handler = async (_evt: any, ctx: any) => {
       ts: new Date().toISOString() 
     })
   };
-};
+});

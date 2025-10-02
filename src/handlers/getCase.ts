@@ -2,8 +2,9 @@ import { ok, bad } from "../shared/responses.js";
 import { getCase } from "../shared/db.js";
 import { requireAuth, verifyMerchantOwnership } from "../shared/auth.js";
 import { validationMiddleware, commonSchemas } from "../shared/validation.js";
+import { setCorrelationContext, withRequestLogging } from "../shared/logger.js";
 
-export async function handler(event:any){
+export const handler = withRequestLogging(async (event:any) => {
   // Validate input first
   const validationSchema = {
     ...commonSchemas.disputeId,
@@ -42,6 +43,8 @@ export async function handler(event:any){
     };
   }
   
+  setCorrelationContext({ merchantId });
+
   const item = await getCase(merchantId, id);
   return ok({ item });
-}
+});

@@ -1,8 +1,9 @@
 import { putMerchant } from "../shared/db.js";
 import Stripe from 'stripe';
 import { createAuditLog, AuditAction, auditFailure } from "../shared/auditLog.js";
+import { setCorrelationContext, withRequestLogging } from "../shared/logger.js";
 
-export async function handler(event:any){
+export const handler = withRequestLogging(async (event:any) => {
   const qs = event.queryStringParameters || {};
   const code = qs.code;
   const state = qs.state; // Should contain firebase_uid
@@ -23,6 +24,7 @@ export async function handler(event:any){
 
   // Extract all OAuth data
   const merchant_id = json.stripe_user_id;
+  setCorrelationContext({ merchantId: merchant_id, eventId: json.id });
   const access_token = json.access_token;
   const refresh_token = json.refresh_token;
   const token_type = json.token_type || 'bearer';
@@ -102,4 +104,4 @@ export async function handler(event:any){
   // Redirect to frontend connect page with success
   const frontendCallbackUrl = `https://stripedshield-founders-1755231149.netlify.app/connect.html?success=true&stripe_account_id=${merchant_id}${firebase_uid ? '&uid=' + firebase_uid : ''}`;
   return { statusCode: 302, headers: { Location: frontendCallbackUrl }, body: '' };
-}
+});

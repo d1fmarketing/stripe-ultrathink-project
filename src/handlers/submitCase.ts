@@ -2,6 +2,7 @@ import { ok, bad } from "../shared/responses.js";
 import { requireAuth, verifyMerchantOwnership } from "../shared/auth.js";
 import { createAuditLog, AuditAction } from "../shared/auditLog.js";
 import Stripe from 'stripe';
+import { setCorrelationContext, withRequestLogging } from "../shared/logger.js";
 import { 
   predictWinRate, 
   shouldSubmit,
@@ -41,7 +42,7 @@ async function publishMetric(name: string, value: number, unit: string = 'Count'
   }
 }
 
-export async function handler(event:any){
+export const handler = withRequestLogging(async (event:any) => {
   // REQUIRE AUTHENTICATION
   const authResult = await requireAuth(event);
   if ('statusCode' in authResult) {
@@ -55,6 +56,8 @@ export async function handler(event:any){
   const forceSubmit = qs.force === 'true'; // Allow forcing immediate submission
   
   if(!merchantId || !id) return bad("missing merchant or id");
+
+  setCorrelationContext({ merchantId });
   
   // VERIFY USER OWNS THIS MERCHANT ACCOUNT
   const hasAccess = await verifyMerchantOwnership(authContext, merchantId);
@@ -268,4 +271,4 @@ export async function handler(event:any){
     console.error('Error submitting dispute:', error);
     return bad(`Failed to submit dispute: ${error.message}`);
   }
-}
+});

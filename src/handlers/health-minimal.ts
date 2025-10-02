@@ -1,4 +1,5 @@
 import { DynamoDBClient, GetItemCommand } from "@aws-sdk/client-dynamodb";
+import { setCorrelationContext, withRequestLogging } from "../shared/logger.js";
 
 // Minimal Redis check without heavy imports
 async function checkRedis(): Promise<{ ok: boolean; error?: string }> {
@@ -38,10 +39,12 @@ async function checkRedis(): Promise<{ ok: boolean; error?: string }> {
 
 const dynamo = new DynamoDBClient({});
 
-export const handler = async (_evt: any, ctx: any) => {
+export const handler = withRequestLogging(async (_evt: any, ctx: any) => {
   if (ctx && typeof ctx === 'object') {
     ctx.callbackWaitsForEmptyEventLoop = false;
   }
+
+  setCorrelationContext({ merchantId: 'system' });
 
   const checks: any = { redis: {}, dynamo: {} };
   let degraded = false;
@@ -87,4 +90,4 @@ export const handler = async (_evt: any, ctx: any) => {
       ts: new Date().toISOString()
     })
   };
-};
+});

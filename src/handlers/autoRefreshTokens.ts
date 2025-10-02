@@ -1,16 +1,18 @@
 import { ScanCommand } from "@aws-sdk/lib-dynamodb";
 import { ddb } from "../shared/ddb.js";
 import { putMerchant } from "../shared/db.js";
+import { setCorrelationContext, withRequestLogging } from "../shared/logger.js";
 
 /**
  * Scheduled Lambda to refresh OAuth tokens before they expire
  * Should run daily via EventBridge
  */
-export async function handler(event: any) {
+export const handler = withRequestLogging(async (event: any) => {
   const MERCHANTS_TABLE = process.env.MERCHANTS_TABLE!;
   const REFRESH_BEFORE_HOURS = 24; // Refresh tokens 24 hours before expiry
-  
+
   try {
+    setCorrelationContext({ merchantId: 'system' });
     // Scan for all merchants with OAuth tokens
     const scanResult = await ddb.send(new ScanCommand({
       TableName: MERCHANTS_TABLE,
@@ -30,6 +32,9 @@ export async function handler(event: any) {
     // Check each merchant
     for (const merchant of merchants) {
       try {
+        if (merchant?.merchant_id) {
+          setCorrelationContext({ merchantId: merchant.merchant_id });
+        }
         // Check if token needs refresh
         const lastRefresh = merchant.token_refreshed_at || merchant.oauth_connected_at;
         if (!lastRefresh) continue;
@@ -93,4 +98,4 @@ export async function handler(event: any) {
       body: JSON.stringify({ error: error.message })
     };
   }
-}
+});
