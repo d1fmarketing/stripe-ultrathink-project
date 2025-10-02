@@ -3,9 +3,10 @@ import { getCase } from "../shared/db.js";
 import { requireAuth, verifyMerchantOwnership } from "../shared/auth.js";
 import { StartExecutionCommand, SFNClient } from "@aws-sdk/client-sfn";
 import Stripe from 'stripe';
+import { env } from "../shared/env.js";
 
 const sfn = new SFNClient({});
-const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion: '2025-07-30.basil' });
+const stripe = new Stripe(env.STRIPE_SECRET, { apiVersion: '2025-07-30.basil' });
 
 export async function handler(event: any) {
   // REQUIRE AUTHENTICATION
@@ -84,10 +85,10 @@ export async function handler(event: any) {
     };
     
     // Start Step Functions execution for retry
-    if (process.env.SFN_ARN) {
+    if (env.SFN_ARN) {
       const executionName = `retry-${disputeId}-${Date.now()}`;
       await sfn.send(new StartExecutionCommand({
-        stateMachineArn: process.env.SFN_ARN,
+        stateMachineArn: env.SFN_ARN,
         name: executionName,
         input: JSON.stringify(sfnInput)
       }));

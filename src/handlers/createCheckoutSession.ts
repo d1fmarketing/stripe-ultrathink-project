@@ -1,8 +1,9 @@
 import Stripe from 'stripe';
 import { ok, bad } from "../shared/responses.js";
 import { requireAuth } from "../shared/auth.js";
+import { env } from "../shared/env.js";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion: '2025-07-30.basil' });
+const stripe = new Stripe(env.STRIPE_SECRET, { apiVersion: '2025-07-30.basil' });
 
 export async function handler(event: any) {
   // Get auth context if user is logged in (optional for checkout)

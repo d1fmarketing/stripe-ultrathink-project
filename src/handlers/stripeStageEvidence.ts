@@ -1,4 +1,5 @@
 import Stripe from 'stripe';
+import { env } from '../shared/env.js';
 
 export async function handler(evt:any){
   const { dispute, evidence, merchant } = evt;
@@ -12,11 +13,11 @@ export async function handler(evt:any){
     stripe = new Stripe(merchant.access_token, { apiVersion:'2025-07-30.basil' });
   } else if (merchant?.stripe_account_id) {
     // Standard connected account - use global secret with stripeAccount header
-    stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion:'2025-07-30.basil' });
+    stripe = new Stripe(env.STRIPE_SECRET, { apiVersion:'2025-07-30.basil' });
     stripeOptions = { stripeAccount: merchant.stripe_account_id };
   } else {
     // Direct account - use global secret
-    stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion:'2025-07-30.basil' });
+    stripe = new Stripe(env.STRIPE_SECRET, { apiVersion:'2025-07-30.basil' });
   }
   
   const res = await stripe.disputes.update(dispute.id, { evidence, submit: false }, stripeOptions);

@@ -1,13 +1,14 @@
 import { ScanCommand } from "@aws-sdk/lib-dynamodb";
 import { ddb } from "../shared/ddb.js";
 import { putMerchant } from "../shared/db.js";
+import { env } from "../shared/env.js";
 
 /**
  * Scheduled Lambda to refresh OAuth tokens before they expire
  * Should run daily via EventBridge
  */
 export async function handler(event: any) {
-  const MERCHANTS_TABLE = process.env.MERCHANTS_TABLE!;
+  const MERCHANTS_TABLE = env.MERCHANTS_TABLE;
   const REFRESH_BEFORE_HOURS = 24; // Refresh tokens 24 hours before expiry
   
   try {
@@ -46,7 +47,7 @@ export async function handler(event: any) {
           const body = new URLSearchParams({
             grant_type: 'refresh_token',
             refresh_token: merchant.refresh_token,
-            client_secret: process.env.STRIPE_SECRET!
+            client_secret: env.STRIPE_SECRET
           });
           
           const response = await fetch('https://connect.stripe.com/oauth/token', {

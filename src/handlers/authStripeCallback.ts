@@ -1,6 +1,7 @@
 import { putMerchant } from "../shared/db.js";
 import Stripe from 'stripe';
 import { createAuditLog, AuditAction, auditFailure } from "../shared/auditLog.js";
+import { env } from "../shared/env.js";
 
 export async function handler(event:any){
   const qs = event.queryStringParameters || {};
@@ -10,8 +11,8 @@ export async function handler(event:any){
   if(!code) return { statusCode:400, body:'missing code' };
 
   const body = new URLSearchParams({
-    client_secret: process.env.STRIPE_SECRET!,
-    client_id: process.env.STRIPE_CLIENT_ID!,
+    client_secret: env.STRIPE_SECRET,
+    client_id: env.STRIPE_CLIENT_ID,
     code, grant_type: 'authorization_code'
   });
 
@@ -73,7 +74,7 @@ export async function handler(event:any){
 
   // Register webhook endpoint for this connected account
   try {
-    const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion: '2025-07-30.basil' });
+    const stripe = new Stripe(env.STRIPE_SECRET, { apiVersion: '2025-07-30.basil' });
     const webhookEndpoint = await stripe.webhookEndpoints.create({
       url: 'https://ket0g0lurh.execute-api.us-east-1.amazonaws.com/webhooks/stripe',
       enabled_events: [

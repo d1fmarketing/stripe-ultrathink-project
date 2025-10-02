@@ -2,6 +2,7 @@ import { bad } from "../shared/responses.js";
 import { requireAuth, verifyMerchantOwnership } from "../shared/auth.js";
 import { createAuditLog, AuditAction } from "../shared/auditLog.js";
 import { StartExecutionCommand, SFNClient as StepFunctionsClient } from "@aws-sdk/client-sfn";
+import { env } from "../shared/env.js";
 
 const sfn = new StepFunctionsClient({});
 
@@ -29,7 +30,7 @@ export async function handler(event:any){
   }
 
   await sfn.send(new StartExecutionCommand({
-    stateMachineArn: process.env.SFN_ARN!,
+    stateMachineArn: env.SFN_ARN,
     input: JSON.stringify({ merchant: { stripe_account_id: merchantId }, dispute_id: id })
   }));
 

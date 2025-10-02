@@ -1,8 +1,9 @@
 import { createErrorResponse } from './responses.js';
 import { ddb } from './ddb.js';
 import { PutCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
+import { env } from './env.js';
 
-const RATE_LIMIT_TABLE = process.env.CASES_TABLE!; // Reuse cases table
+const RATE_LIMIT_TABLE = env.CASES_TABLE; // Reuse cases table
 
 interface RateLimitConfig {
   maxRequests: number;
