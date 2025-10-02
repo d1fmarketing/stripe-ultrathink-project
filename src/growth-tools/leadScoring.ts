@@ -1,3 +1,5 @@
+import type { BusinessKPITracker } from './kpiTracker';
+
 export interface Lead {
   id: string;
   email: string;
@@ -66,8 +68,9 @@ export class LeadScoring {
   private leads: Map<string, Lead>;
   private scoringRules: ScoringRule[];
   private gradeThresholds: { [key: string]: number };
-  
-  constructor() {
+  private kpiTracker?: BusinessKPITracker;
+
+  constructor(kpiTracker?: BusinessKPITracker) {
     this.leads = new Map();
     this.scoringRules = this.initializeScoringRules();
     this.gradeThresholds = {
@@ -77,6 +80,11 @@ export class LeadScoring {
       'D': 20,
       'F': 0
     };
+    this.kpiTracker = kpiTracker;
+  }
+
+  attachKPITracker(tracker: BusinessKPITracker): void {
+    this.kpiTracker = tracker;
   }
   
   private initializeScoringRules(): ScoringRule[] {
@@ -160,8 +168,9 @@ export class LeadScoring {
     
     // Calculate initial score
     this.scoreLead(lead);
-    
+
     this.leads.set(leadId, lead);
+    this.kpiTracker?.recordLeadCreated(lead);
     return lead;
   }
   
@@ -199,15 +208,24 @@ export class LeadScoring {
       }
     }
     
+    const previousStatus = lead.status;
+
     // Update lead
     lead.score = Math.max(0, Math.min(100, totalScore));
     lead.grade = this.calculateGrade(lead.score);
     lead.signals = signals;
     lead.updated = new Date();
-    
+
     // Update status based on score
     this.updateLeadStatus(lead);
-    
+
+    const conversionProbability = this.predictConversionProbability(lead);
+    this.kpiTracker?.recordLeadUpdated(lead, conversionProbability);
+
+    if (previousStatus !== lead.status) {
+      this.kpiTracker?.recordLeadStageChange(lead.id, previousStatus, lead.status, lead.score);
+    }
+
     return lead.score;
   }
   
@@ -294,6 +312,7 @@ export class LeadScoring {
     
     lead.engagement.lastActivity = new Date();
     this.scoreLead(lead); // Recalculate score
+    this.kpiTracker?.recordLeadEngagement(leadId, action, lead.engagement);
   }
   
   enrichLead(leadId: string, additionalData: Partial<Lead>): void {
