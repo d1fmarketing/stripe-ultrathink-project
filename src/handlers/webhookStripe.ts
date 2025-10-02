@@ -5,6 +5,7 @@ import { getMerchantWinRate } from "../shared/db-helpers.js";
 import { handleSubscriptionEvent } from "./subscriptionManager.js";
 import { WebhookIdempotencyService } from "../shared/webhookIdempotency.js";
 import { getMerchantWebhookSecret, validateWebhookSignature } from "../shared/webhookSecrets.js";
+import { stripeCircuitBreaker } from "../shared/circuitBreaker.js";
 import { 
   analyzeDispute, 
   quickAssessRisk,
@@ -315,7 +316,14 @@ export async function handler(event:any){
       if(evt.type === 'charge.dispute.created'){
         try {
           // Get charge data for analysis
-          const charge = await stripe.charges.retrieve(dispute.charge as string, { stripeAccount: eventAccount });
+          const charge = await stripeCircuitBreaker(
+            'charges.retrieve',
+            () => stripe.charges.retrieve(dispute.charge as string, { stripeAccount: eventAccount }),
+            {
+              failureThreshold: 4,
+              cooldownPeriod: 120_000
+            }
+          );
           
           // Quick risk assessment first
           riskLevel = quickAssessRisk(dispute);
@@ -450,7 +458,14 @@ export async function handler(event:any){
         // 6. Update pattern cache with outcome (Safe - with fallback)
         if (patternCache && process.env.ENABLE_PATTERN_CACHE === 'true') {
           try {
-            const charge = await stripe.charges.retrieve(dispute.charge as string, { stripeAccount: eventAccount });
+            const charge = await stripeCircuitBreaker(
+              'charges.retrieve',
+              () => stripe.charges.retrieve(dispute.charge as string, { stripeAccount: eventAccount }),
+              {
+                failureThreshold: 4,
+                cooldownPeriod: 120_000
+              }
+            );
             const patternKey = {
               amount: charge?.amount || 0,
               reason: dispute?.reason || 'unknown',

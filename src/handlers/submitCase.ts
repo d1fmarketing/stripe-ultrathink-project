@@ -2,6 +2,7 @@ import { ok, bad } from "../shared/responses.js";
 import { requireAuth, verifyMerchantOwnership } from "../shared/auth.js";
 import { createAuditLog, AuditAction } from "../shared/auditLog.js";
 import Stripe from 'stripe';
+import { stripeCircuitBreaker } from "../shared/circuitBreaker.js";
 import { 
   predictWinRate, 
   shouldSubmit,
@@ -76,9 +77,17 @@ export async function handler(event:any){
 
   try {
     // Get dispute details with charge expanded
-    const dispute = await stripe.disputes.retrieve(id, 
-      { expand: ['charge'] },
-      { stripeAccount: merchantId }
+    const dispute = await stripeCircuitBreaker(
+      'disputes.retrieve',
+      () => stripe.disputes.retrieve(
+        id,
+        { expand: ['charge'] },
+        { stripeAccount: merchantId }
+      ),
+      {
+        failureThreshold: 4,
+        cooldownPeriod: 120_000
+      }
     );
     const charge = dispute.charge as Stripe.Charge;
     
@@ -220,7 +229,14 @@ export async function handler(event:any){
     
     // Submit the dispute
     console.log(`[SUBMIT] Submitting dispute ${id} for merchant ${merchantId}`);
-    const res = await stripe.disputes.update(id, { submit: true }, { stripeAccount: merchantId });
+    const res = await stripeCircuitBreaker(
+      'disputes.update',
+      () => stripe.disputes.update(id, { submit: true }, { stripeAccount: merchantId }),
+      {
+        failureThreshold: 4,
+        cooldownPeriod: 120_000
+      }
+    );
     
     // Audit successful submission
     await createAuditLog({
