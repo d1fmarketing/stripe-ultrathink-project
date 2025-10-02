@@ -88,16 +88,24 @@ export async function validateAuth(authHeader: string | undefined): Promise<Auth
  * Middleware to require authentication
  */
 export async function requireAuth(event: any): Promise<AuthContext | { statusCode: number; body: string }> {
+  if (event && (event as any).authContext) {
+    return (event as any).authContext as AuthContext;
+  }
+
   const authHeader = event.headers?.Authorization || event.headers?.authorization;
   const authContext = await validateAuth(authHeader);
-  
+
   if (!authContext) {
     return {
       statusCode: 401,
       body: JSON.stringify({ error: 'Unauthorized' })
     };
   }
-  
+
+  if (event) {
+    (event as any).authContext = authContext;
+  }
+
   return authContext;
 }
 

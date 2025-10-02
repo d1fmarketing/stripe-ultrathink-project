@@ -3,6 +3,7 @@ import { requireAuth, verifyMerchantOwnership } from '../shared/auth.js';
 import { listCases } from '../shared/db.js';
 import { validationMiddleware, commonSchemas } from '../shared/validation.js';
 import Stripe from 'stripe';
+import { rateLimitMiddleware } from '../shared/rateLimit.js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion: '2025-07-30.basil' });
 
@@ -88,6 +89,15 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
         headers,
         body: JSON.stringify({ error: 'Access denied to this merchant account' })
       };
+    }
+
+    const rateLimitResult = await rateLimitMiddleware(event, {
+      authContext,
+      merchantId,
+      identifierSuffix: input.status || 'all'
+    });
+    if (rateLimitResult) {
+      return { ...rateLimitResult, headers: { ...headers, ...(rateLimitResult.headers || {}) } };
     }
     
     // Get REAL disputes from Stripe

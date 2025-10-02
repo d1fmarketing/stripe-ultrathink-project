@@ -1,6 +1,7 @@
 import { createErrorResponse } from './responses.js';
 import { ddb } from './ddb.js';
 import { PutCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
+import { AuthContext, validateAuth } from './auth.js';
 
 const RATE_LIMIT_TABLE = process.env.CASES_TABLE!; // Reuse cases table
 
@@ -8,6 +9,19 @@ interface RateLimitConfig {
   maxRequests: number;
   windowSeconds: number;
   identifier: string;
+}
+
+interface RateLimitContext {
+  userId?: string;
+  merchantId?: string;
+  identifierSuffix?: string;
+}
+
+interface RateLimitOptions {
+  authContext?: AuthContext | null;
+  merchantId?: string | null;
+  identifierSuffix?: string;
+  skipAuthLookup?: boolean;
 }
 
 /**
@@ -60,32 +74,40 @@ export async function checkRateLimit(config: RateLimitConfig): Promise<boolean> 
 /**
  * Get rate limit configuration for different API endpoints
  */
-export function getRateLimitConfig(path: string, sourceIp: string): RateLimitConfig {
+export function getRateLimitConfig(path: string, sourceIp: string, context: RateLimitContext = {}): RateLimitConfig {
+  const scope = context.merchantId
+    ? `merchant:${context.merchantId}`
+    : context.userId
+      ? `user:${context.userId}`
+      : `ip:${sourceIp}`;
+
+  const suffix = context.identifierSuffix ? `:${context.identifierSuffix}` : '';
+
   // Different limits for different endpoints
   if (path.includes('/webhook')) {
     return {
       maxRequests: 1000, // 1000 webhook events per minute
       windowSeconds: 60,
-      identifier: `webhook:${sourceIp}`
+      identifier: `webhook:${scope}${suffix}`
     };
   } else if (path.includes('/cases')) {
     return {
       maxRequests: 100, // 100 requests per minute for cases endpoint
       windowSeconds: 60,
-      identifier: `cases:${sourceIp}`
+      identifier: `cases:${scope}${suffix}`
     };
   } else if (path.includes('/auth')) {
     return {
       maxRequests: 20, // 20 auth attempts per minute
       windowSeconds: 60,
-      identifier: `auth:${sourceIp}`
+      identifier: `auth:${scope}${suffix}`
     };
   } else {
     // Default rate limit
     return {
       maxRequests: 200, // 200 requests per minute default
       windowSeconds: 60,
-      identifier: `default:${sourceIp}`
+      identifier: `default:${scope}${suffix}`
     };
   }
 }
@@ -93,13 +115,39 @@ export function getRateLimitConfig(path: string, sourceIp: string): RateLimitCon
 /**
  * Express-style middleware for rate limiting
  */
-export async function rateLimitMiddleware(event: any): Promise<any> {
+export async function rateLimitMiddleware(event: any, options: RateLimitOptions = {}): Promise<any> {
   const sourceIp = event.requestContext?.identity?.sourceIp || 'unknown';
   const path = event.path || '/';
-  
-  const config = getRateLimitConfig(path, sourceIp);
+
+  let authContext = options.authContext ?? (event?.authContext as AuthContext | undefined);
+
+  if (!authContext && !options.skipAuthLookup) {
+    try {
+      const authHeader = event.headers?.Authorization || event.headers?.authorization;
+      if (authHeader) {
+        authContext = await validateAuth(authHeader) ?? undefined;
+        if (authContext) {
+          (event as any).authContext = authContext;
+        }
+      }
+    } catch (error) {
+      console.warn('Rate limit auth lookup failed:', error);
+    }
+  }
+
+  const merchantId = options.merchantId
+    ?? event?.queryStringParameters?.merchant
+    ?? authContext?.merchant_id
+    ?? authContext?.stripe_account_id
+    ?? undefined;
+
+  const config = getRateLimitConfig(path, sourceIp, {
+    userId: authContext?.uid,
+    merchantId,
+    identifierSuffix: options.identifierSuffix
+  });
   const allowed = await checkRateLimit(config);
-  
+
   if (!allowed) {
     return createErrorResponse(429, 'Too Many Requests', {
       message: 'Rate limit exceeded. Please try again later.',

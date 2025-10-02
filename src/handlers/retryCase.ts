@@ -1,6 +1,7 @@
 import { ok, bad, createErrorResponse } from "../shared/responses.js";
 import { getCase } from "../shared/db.js";
 import { requireAuth, verifyMerchantOwnership } from "../shared/auth.js";
+import { rateLimitMiddleware } from "../shared/rateLimit.js";
 import { StartExecutionCommand, SFNClient } from "@aws-sdk/client-sfn";
 import Stripe from 'stripe';
 
@@ -32,6 +33,15 @@ export async function handler(event: any) {
     return createErrorResponse(403, 'Access denied', {
       error: 'You do not have access to this merchant account'
     });
+  }
+
+  const rateLimitResult = await rateLimitMiddleware(event, {
+    authContext,
+    merchantId,
+    identifierSuffix: disputeId
+  });
+  if (rateLimitResult) {
+    return rateLimitResult;
   }
   
   try {

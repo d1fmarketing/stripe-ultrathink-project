@@ -1,6 +1,7 @@
 import { ok, bad } from "../shared/responses.js";
 import { listCases } from "../shared/db.js";
 import { requireAuth } from "../shared/auth.js";
+import { rateLimitMiddleware } from "../shared/rateLimit.js";
 
 /**
  * Get disputes for the authenticated user only
@@ -25,6 +26,15 @@ export async function handler(event: any) {
   // Get query parameters
   const qs = event.queryStringParameters || {};
   const status = qs.status; // optional filter by status
+
+  const rateLimitResult = await rateLimitMiddleware(event, {
+    authContext,
+    merchantId: authContext.merchant_id,
+    identifierSuffix: status || 'all'
+  });
+  if (rateLimitResult) {
+    return rateLimitResult;
+  }
   
   try {
     // Get disputes for this user's merchant account only

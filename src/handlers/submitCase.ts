@@ -1,6 +1,7 @@
 import { ok, bad } from "../shared/responses.js";
 import { requireAuth, verifyMerchantOwnership } from "../shared/auth.js";
 import { createAuditLog, AuditAction } from "../shared/auditLog.js";
+import { rateLimitMiddleware } from "../shared/rateLimit.js";
 import Stripe from 'stripe';
 import { 
   predictWinRate, 
@@ -72,6 +73,15 @@ export async function handler(event:any){
       statusCode: 403,
       body: JSON.stringify({ error: 'Access denied to this merchant account' })
     };
+  }
+
+  const rateLimitResult = await rateLimitMiddleware(event, {
+    authContext,
+    merchantId,
+    identifierSuffix: id
+  });
+  if (rateLimitResult) {
+    return rateLimitResult;
   }
 
   try {
