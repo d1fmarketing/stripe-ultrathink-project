@@ -1,0 +1,31 @@
+name: Nightly AWS Backups
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+jobs:
+  run-backups:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      AWS_REGION: us-east-1
+      STAGE: prod
+      STACK_NAME: chargeback-autopilot-stripe-prod
+      SSM_PARAMETER_PATH: /chargeback/prod
+      BACKUP_BUCKET: ${{ secrets.AWS_BACKUP_BUCKET }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_BACKUP_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_BACKUP_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Run automated backup workflow
+        run: ./scripts/automated-backup.sh
