@@ -1,7 +1,7 @@
 import { ok, bad } from "../shared/responses.js";
 import { requireAuth, verifyMerchantOwnership } from "../shared/auth.js";
 import { createAuditLog, AuditAction } from "../shared/auditLog.js";
-import { putMerchant, getCase } from "../shared/db.js";
+import { updateMerchantAttributes, getCase } from "../shared/db.js";
 import Stripe from 'stripe';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion: '2025-07-30.basil' });
@@ -76,8 +76,7 @@ async function handleSubscriptionCreated(merchantId: string, subscription: any) 
   console.log(`[SUBSCRIPTION] Created for merchant ${merchantId}: ${subscription.id}`);
   
   // Update merchant with subscription info
-  await putMerchant({
-    merchant_id: merchantId,
+  await updateMerchantAttributes(merchantId, {
     subscription_id: subscription.id,
     subscription_status: subscription.status,
     subscription_current_period_end: subscription.current_period_end,
@@ -97,8 +96,7 @@ async function handleSubscriptionUpdated(merchantId: string, subscription: any) 
   console.log(`[SUBSCRIPTION] Updated for merchant ${merchantId}: ${subscription.id}`);
   
   // Update subscription status
-  await putMerchant({
-    merchant_id: merchantId,
+  await updateMerchantAttributes(merchantId, {
     subscription_status: subscription.status,
     subscription_current_period_end: subscription.current_period_end,
     subscription_cancel_at_period_end: subscription.cancel_at_period_end,
@@ -119,8 +117,7 @@ async function handleSubscriptionDeleted(merchantId: string, subscription: any) 
   console.log(`[SUBSCRIPTION] Deleted for merchant ${merchantId}: ${subscription.id}`);
   
   // Mark subscription as canceled
-  await putMerchant({
-    merchant_id: merchantId,
+  await updateMerchantAttributes(merchantId, {
     subscription_status: 'canceled',
     subscription_canceled_at: new Date().toISOString(),
     premium_features_active: false
@@ -135,8 +132,7 @@ async function handleTrialWillEnd(merchantId: string, subscription: any) {
   
   // Send notification about trial ending (implement email/notification service)
   // For now, just log it
-  await putMerchant({
-    merchant_id: merchantId,
+  await updateMerchantAttributes(merchantId, {
     trial_ending_notification_sent: new Date().toISOString()
   });
 }
@@ -144,8 +140,7 @@ async function handleTrialWillEnd(merchantId: string, subscription: any) {
 async function handleSubscriptionPaused(merchantId: string, subscription: any) {
   console.log(`[SUBSCRIPTION] Paused for merchant ${merchantId}: ${subscription.id}`);
   
-  await putMerchant({
-    merchant_id: merchantId,
+  await updateMerchantAttributes(merchantId, {
     subscription_status: 'paused',
     subscription_paused_at: new Date().toISOString(),
     premium_features_active: false
@@ -158,8 +153,7 @@ async function handleSubscriptionPaused(merchantId: string, subscription: any) {
 async function handleSubscriptionResumed(merchantId: string, subscription: any) {
   console.log(`[SUBSCRIPTION] Resumed for merchant ${merchantId}: ${subscription.id}`);
   
-  await putMerchant({
-    merchant_id: merchantId,
+  await updateMerchantAttributes(merchantId, {
     subscription_status: 'active',
     subscription_resumed_at: new Date().toISOString(),
     premium_features_active: true
@@ -173,8 +167,7 @@ async function handlePastDueSubscription(merchantId: string) {
   console.log(`[SUBSCRIPTION] Handling past due for merchant ${merchantId}`);
   
   // Limit features for past due accounts
-  await putMerchant({
-    merchant_id: merchantId,
+  await updateMerchantAttributes(merchantId, {
     premium_features_limited: true,
     past_due_notification_sent: new Date().toISOString()
   });
@@ -183,8 +176,7 @@ async function handlePastDueSubscription(merchantId: string) {
 async function activatePremiumFeatures(merchantId: string) {
   console.log(`[FEATURES] Activating premium features for merchant ${merchantId}`);
   
-  await putMerchant({
-    merchant_id: merchantId,
+  await updateMerchantAttributes(merchantId, {
     premium_features_active: true,
     ai_enabled: true,
     ce3_detection_enabled: true,
@@ -199,8 +191,7 @@ async function activatePremiumFeatures(merchantId: string) {
 async function deactivatePremiumFeatures(merchantId: string) {
   console.log(`[FEATURES] Deactivating premium features for merchant ${merchantId}`);
   
-  await putMerchant({
-    merchant_id: merchantId,
+  await updateMerchantAttributes(merchantId, {
     premium_features_active: false,
     ai_enabled: false,
     ce3_detection_enabled: false,
@@ -327,8 +318,7 @@ export async function cancelSubscription(event: any) {
     );
     
     // Update merchant record
-    await putMerchant({
-      merchant_id: merchantId,
+    await updateMerchantAttributes(merchantId, {
       subscription_cancel_at_period_end: true,
       subscription_cancel_requested_at: new Date().toISOString()
     });
