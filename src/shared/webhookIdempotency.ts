@@ -1,8 +1,5 @@
-import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, PutCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
-
-const client = new DynamoDBClient({});
-const ddb = DynamoDBDocumentClient.from(client);
+import { PutCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
+import { ddb } from './ddb';
 
 const IDEMPOTENCY_TABLE = process.env.CASES_TABLE || 'CasesTable';
 const IDEMPOTENCY_TTL_HOURS = 24;
