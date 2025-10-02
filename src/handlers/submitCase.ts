@@ -1,6 +1,7 @@
 import { ok, bad } from "../shared/responses.js";
 import { requireAuth, verifyMerchantOwnership } from "../shared/auth.js";
 import { createAuditLog, AuditAction } from "../shared/auditLog.js";
+import { IdempotencyService } from "../shared/idempotency.js";
 import Stripe from 'stripe';
 import { 
   predictWinRate, 
@@ -42,31 +43,32 @@ async function publishMetric(name: string, value: number, unit: string = 'Count'
 }
 
 export async function handler(event:any){
-  // REQUIRE AUTHENTICATION
-  const authResult = await requireAuth(event);
-  if ('statusCode' in authResult) {
-    return authResult; // Return 401 if not authenticated
-  }
-  const authContext = authResult;
-  
-  const id = event.pathParameters?.id;
-  const qs = event.queryStringParameters || {};
-  const merchantId = qs.merchant || authContext.merchant_id;
-  const forceSubmit = qs.force === 'true'; // Allow forcing immediate submission
-  
-  if(!merchantId || !id) return bad("missing merchant or id");
-  
-  // VERIFY USER OWNS THIS MERCHANT ACCOUNT
-  const hasAccess = await verifyMerchantOwnership(authContext, merchantId);
-  if (!hasAccess) {
-    await createAuditLog({
-      action: AuditAction.UNAUTHORIZED_ACCESS,
-      userId: authContext.uid,
-      userEmail: authContext.email,
-      resourceType: 'dispute',
-      resourceId: id,
-      success: false,
-      errorMessage: 'Attempted to submit evidence for unauthorized merchant'
+  return IdempotencyService.handleHttp(event, async () => {
+      // REQUIRE AUTHENTICATION
+      const authResult = await requireAuth(event);
+      if ('statusCode' in authResult) {
+        return authResult; // Return 401 if not authenticated
+      }
+      const authContext = authResult;
+      
+      const id = event.pathParameters?.id;
+      const qs = event.queryStringParameters || {};
+      const merchantId = qs.merchant || authContext.merchant_id;
+      const forceSubmit = qs.force === 'true'; // Allow forcing immediate submission
+      
+      if(!merchantId || !id) return bad("missing merchant or id");
+      
+      // VERIFY USER OWNS THIS MERCHANT ACCOUNT
+      const hasAccess = await verifyMerchantOwnership(authContext, merchantId);
+      if (!hasAccess) {
+        await createAuditLog({
+          action: AuditAction.UNAUTHORIZED_ACCESS,
+          userId: authContext.uid,
+          userEmail: authContext.email,
+          resourceType: 'dispute',
+          resourceId: id,
+          success: false,
+          errorMessage: 'Attempted to submit evidence for unauthorized merchant'
     });
     return {
       statusCode: 403,
@@ -268,4 +270,5 @@ export async function handler(event:any){
     console.error('Error submitting dispute:', error);
     return bad(`Failed to submit dispute: ${error.message}`);
   }
+  });
 }
