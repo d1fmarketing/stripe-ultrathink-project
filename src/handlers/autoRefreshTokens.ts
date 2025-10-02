@@ -1,6 +1,7 @@
 import { ScanCommand } from "@aws-sdk/lib-dynamodb";
 import { ddb } from "../shared/ddb.js";
 import { putMerchant } from "../shared/db.js";
+import { AuditAction } from "../shared/auditLog.js";
 
 /**
  * Scheduled Lambda to refresh OAuth tokens before they expire
@@ -64,6 +65,12 @@ export async function handler(event: any) {
               access_token: json.access_token,
               refresh_token: json.refresh_token || merchant.refresh_token,
               token_refreshed_at: new Date().toISOString()
+            }, {
+              action: AuditAction.OAUTH_TOKEN_REFRESH,
+              merchantId: merchant.merchant_id,
+              metadata: {
+                source: 'autoRefreshTokens'
+              }
             });
             
             results.refreshed++;

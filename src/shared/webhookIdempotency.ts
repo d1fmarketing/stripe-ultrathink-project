@@ -1,5 +1,6 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, PutCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
+import { auditDataMutation, AuditAction } from './auditLog.js';
 
 const client = new DynamoDBClient({});
 const ddb = DynamoDBDocumentClient.from(client);
@@ -57,8 +58,19 @@ export class WebhookIdempotencyService {
           metadata: metadata || {}
         }
       }));
-      
+
       console.log(`[IDEMPOTENCY] Marked webhook as processed: ${eventId}`);
+
+      await auditDataMutation({
+        action: metadata?.success === false ? AuditAction.ERROR_OCCURRED : AuditAction.WEBHOOK_RECEIVED,
+        resourceType: 'webhook_event',
+        resourceId: eventId,
+        merchantId: metadata?.merchantId,
+        metadata: {
+          ...metadata,
+          source: 'idempotency'
+        }
+      });
     } catch (error) {
       console.error('[IDEMPOTENCY] Error marking processed:', error);
       // Continue processing even if we can't mark it

@@ -85,6 +85,14 @@ async function handleSubscriptionCreated(merchantId: string, subscription: any) 
     subscription_created_at: new Date(subscription.created * 1000).toISOString(),
     plan_id: subscription.items?.data?.[0]?.price?.id,
     customer_id: subscription.customer
+  }, {
+    action: AuditAction.SUBSCRIPTION_CREATED,
+    merchantId,
+    metadata: {
+      subscriptionId: subscription.id,
+      status: subscription.status,
+      event: 'handleSubscriptionCreated'
+    }
   });
   
   // If this is the first paid subscription, activate premium features
@@ -103,6 +111,14 @@ async function handleSubscriptionUpdated(merchantId: string, subscription: any) 
     subscription_current_period_end: subscription.current_period_end,
     subscription_cancel_at_period_end: subscription.cancel_at_period_end,
     plan_id: subscription.items?.data?.[0]?.price?.id
+  }, {
+    action: AuditAction.SUBSCRIPTION_UPDATED,
+    merchantId,
+    metadata: {
+      subscriptionId: subscription.id,
+      status: subscription.status,
+      event: 'handleSubscriptionUpdated'
+    }
   });
   
   // Handle status changes
@@ -124,6 +140,13 @@ async function handleSubscriptionDeleted(merchantId: string, subscription: any) 
     subscription_status: 'canceled',
     subscription_canceled_at: new Date().toISOString(),
     premium_features_active: false
+  }, {
+    action: AuditAction.SUBSCRIPTION_CANCELLED,
+    merchantId,
+    metadata: {
+      subscriptionId: subscription.id,
+      event: 'handleSubscriptionDeleted'
+    }
   });
   
   // Deactivate premium features
@@ -138,6 +161,13 @@ async function handleTrialWillEnd(merchantId: string, subscription: any) {
   await putMerchant({
     merchant_id: merchantId,
     trial_ending_notification_sent: new Date().toISOString()
+  }, {
+    action: AuditAction.SUBSCRIPTION_UPDATED,
+    merchantId,
+    metadata: {
+      subscriptionId: subscription.id,
+      event: 'handleTrialWillEnd'
+    }
   });
 }
 
@@ -149,6 +179,13 @@ async function handleSubscriptionPaused(merchantId: string, subscription: any) {
     subscription_status: 'paused',
     subscription_paused_at: new Date().toISOString(),
     premium_features_active: false
+  }, {
+    action: AuditAction.SUBSCRIPTION_UPDATED,
+    merchantId,
+    metadata: {
+      subscriptionId: subscription.id,
+      event: 'handleSubscriptionPaused'
+    }
   });
   
   // Temporarily deactivate features
@@ -163,6 +200,13 @@ async function handleSubscriptionResumed(merchantId: string, subscription: any) 
     subscription_status: 'active',
     subscription_resumed_at: new Date().toISOString(),
     premium_features_active: true
+  }, {
+    action: AuditAction.SUBSCRIPTION_UPDATED,
+    merchantId,
+    metadata: {
+      subscriptionId: subscription.id,
+      event: 'handleSubscriptionResumed'
+    }
   });
   
   // Reactivate features
@@ -177,6 +221,12 @@ async function handlePastDueSubscription(merchantId: string) {
     merchant_id: merchantId,
     premium_features_limited: true,
     past_due_notification_sent: new Date().toISOString()
+  }, {
+    action: AuditAction.SUBSCRIPTION_UPDATED,
+    merchantId,
+    metadata: {
+      event: 'handlePastDueSubscription'
+    }
   });
 }
 
@@ -193,6 +243,12 @@ async function activatePremiumFeatures(merchantId: string) {
     api_rate_limit: 10000, // Premium rate limit
     max_disputes_per_month: -1, // Unlimited
     features_activated_at: new Date().toISOString()
+  }, {
+    action: AuditAction.SETTINGS_UPDATED,
+    merchantId,
+    metadata: {
+      event: 'activatePremiumFeatures'
+    }
   });
 }
 
@@ -209,6 +265,12 @@ async function deactivatePremiumFeatures(merchantId: string) {
     api_rate_limit: 100, // Free tier rate limit
     max_disputes_per_month: 10, // Free tier limit
     features_deactivated_at: new Date().toISOString()
+  }, {
+    action: AuditAction.SETTINGS_UPDATED,
+    merchantId,
+    metadata: {
+      event: 'deactivatePremiumFeatures'
+    }
   });
 }
 
@@ -331,6 +393,15 @@ export async function cancelSubscription(event: any) {
       merchant_id: merchantId,
       subscription_cancel_at_period_end: true,
       subscription_cancel_requested_at: new Date().toISOString()
+    }, {
+      action: AuditAction.SUBSCRIPTION_CANCELLED,
+      merchantId,
+      userId: authContext.uid,
+      userEmail: authContext.email,
+      metadata: {
+        event: 'cancelSubscriptionRequest',
+        subscriptionId: merchant.subscription_id
+      }
     });
     
     // Audit the cancellation

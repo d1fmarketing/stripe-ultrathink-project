@@ -2,6 +2,7 @@ import Stripe from 'stripe';
 import { ok, bad } from "../shared/responses.js";
 import { requireAuth } from "../shared/auth.js";
 import { getMerchantByAccount, putMerchant } from "../shared/db.js";
+import { AuditAction } from "../shared/auditLog.js";
 
 /**
  * Refresh Stripe OAuth access token using refresh token
@@ -52,6 +53,14 @@ export async function handler(event: any) {
       access_token: json.access_token,
       refresh_token: json.refresh_token || merchant.refresh_token, // Use new refresh token if provided
       token_refreshed_at: new Date().toISOString()
+    }, {
+      action: AuditAction.OAUTH_TOKEN_REFRESH,
+      merchantId: authContext.merchant_id,
+      userId: authContext.uid,
+      userEmail: authContext.email,
+      metadata: {
+        source: 'manualRefresh'
+      }
     });
     
     return ok({

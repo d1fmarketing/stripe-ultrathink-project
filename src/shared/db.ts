@@ -1,10 +1,22 @@
 import { ddb } from "./ddb.js";
 import { PutCommand, GetCommand, QueryCommand, ScanCommand } from "@aws-sdk/lib-dynamodb";
+import { auditDataMutation, AuditAction } from "./auditLog.js";
 
 const MERCHANTS = process.env.MERCHANTS_TABLE!;
 const CASES = process.env.CASES_TABLE!;
 
-export async function putMerchant(m:any){
+interface MutationAuditContext {
+  action?: AuditAction;
+  userId?: string;
+  userEmail?: string;
+  merchantId?: string;
+  correlationId?: string;
+  ipAddress?: string;
+  userAgent?: string;
+  metadata?: Record<string, any>;
+}
+
+export async function putMerchant(m:any, auditContext: MutationAuditContext = {}){
   // Use stripe_account_id as the primary key for consistency
   const merchant_id = m.stripe_account_id || m.merchant_id;
   const item = {
@@ -15,6 +27,22 @@ export async function putMerchant(m:any){
     created_at: m.created_at || new Date().toISOString()
   };
   await ddb.send(new PutCommand({ TableName: MERCHANTS, Item: item }));
+
+  await auditDataMutation({
+    action: auditContext.action ?? AuditAction.SETTINGS_UPDATED,
+    resourceType: 'merchant',
+    resourceId: merchant_id,
+    userId: auditContext.userId,
+    userEmail: auditContext.userEmail,
+    merchantId: auditContext.merchantId ?? merchant_id,
+    correlationId: auditContext.correlationId,
+    ipAddress: auditContext.ipAddress,
+    userAgent: auditContext.userAgent,
+    metadata: {
+      updatedFields: Object.keys(m),
+      ...auditContext.metadata
+    }
+  });
 }
 
 export async function getMerchantByAccount(stripe_account_id:string){
@@ -23,7 +51,7 @@ export async function getMerchantByAccount(stripe_account_id:string){
   return r.Item || { pk, merchant_id: stripe_account_id, stripe_account_id, settings: { autoSubmit: true, autoAcceptBelowCents: 0, retentionDays: 540, notifyEmails: [] } };
 }
 
-export async function upsertCase(merchantId:string, dispute:any, extras:any={}){
+export async function upsertCase(merchantId:string, dispute:any, extras:any={}, auditContext: MutationAuditContext = {}){
   const now = Math.floor(Date.now()/1000);
   const item = {
     pk: `MERCHANT#${merchantId}`,
@@ -46,6 +74,28 @@ export async function upsertCase(merchantId:string, dispute:any, extras:any={}){
     ...extras
   };
   await ddb.send(new PutCommand({ TableName: CASES, Item: item }));
+
+  const inferredAction = extras?.type === 'subscription'
+    ? AuditAction.SUBSCRIPTION_UPDATED
+    : AuditAction.DISPUTE_UPDATED;
+
+  await auditDataMutation({
+    action: auditContext.action ?? inferredAction,
+    resourceType: extras?.type === 'subscription' ? 'subscription' : 'case',
+    resourceId: dispute.id,
+    userId: auditContext.userId,
+    userEmail: auditContext.userEmail,
+    merchantId: auditContext.merchantId ?? merchantId,
+    correlationId: auditContext.correlationId,
+    ipAddress: auditContext.ipAddress,
+    userAgent: auditContext.userAgent,
+    metadata: {
+      status: dispute.status,
+      disputeReason: dispute.reason,
+      updatedFields: Object.keys({ ...dispute, ...extras }),
+      ...auditContext.metadata
+    }
+  });
   return item;
 }
 

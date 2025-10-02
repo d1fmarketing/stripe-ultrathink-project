@@ -95,6 +95,38 @@ export async function createAuditLog(entry: Omit<AuditLogEntry, 'id' | 'timestam
   }
 }
 
+export interface DataMutationAuditInput {
+  action: AuditAction;
+  resourceType: string;
+  resourceId: string;
+  userId?: string;
+  userEmail?: string;
+  merchantId?: string;
+  ipAddress?: string;
+  userAgent?: string;
+  correlationId?: string;
+  metadata?: Record<string, any>;
+  success?: boolean;
+  errorMessage?: string;
+}
+
+export async function auditDataMutation(input: DataMutationAuditInput): Promise<void> {
+  await createAuditLog({
+    action: input.action,
+    userId: input.userId,
+    userEmail: input.userEmail,
+    merchantId: input.merchantId,
+    resourceType: input.resourceType,
+    resourceId: input.resourceId,
+    ipAddress: input.ipAddress,
+    userAgent: input.userAgent,
+    correlationId: input.correlationId,
+    success: input.success ?? true,
+    errorMessage: input.errorMessage,
+    metadata: input.metadata
+  });
+}
+
 /**
  * Audit middleware for Lambda handlers
  */

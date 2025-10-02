@@ -1,5 +1,6 @@
 import Stripe from 'stripe';
 import { getMerchantByAccount, upsertCase } from "../shared/db.js";
+import { AuditAction } from "../shared/auditLog.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion:'2025-07-30.basil' });
 
@@ -8,6 +9,12 @@ export async function handler(evt:any){
   const merchant = await getMerchantByAccount(stripe_account_id);
   const d = await stripe.disputes.retrieve(dispute_id, { stripeAccount: stripe_account_id });
   const tMinus = d.evidence_details?.due_by ? new Date((d.evidence_details.due_by*1000) - (48*3600*1000)).toISOString() : null;
-  await upsertCase(stripe_account_id, d, {});
+  await upsertCase(stripe_account_id, d, {}, {
+    action: AuditAction.DISPUTE_UPDATED,
+    merchantId: stripe_account_id,
+    metadata: {
+      source: 'getDisputeHandler'
+    }
+  });
   return { ...evt, dispute: d, merchant, "dispute.evidence_details.due_by_minus_48h": tMinus };
 }
