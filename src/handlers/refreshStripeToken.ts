@@ -1,7 +1,7 @@
 import Stripe from 'stripe';
 import { ok, bad } from "../shared/responses.js";
 import { requireAuth } from "../shared/auth.js";
-import { getMerchantByAccount, putMerchant } from "../shared/db.js";
+import { getMerchantByAccount, updateMerchantTokens } from "../shared/db.js";
 
 /**
  * Refresh Stripe OAuth access token using refresh token
@@ -47,8 +47,7 @@ export async function handler(event: any) {
     }
     
     // Save new tokens
-    await putMerchant({
-      merchant_id: authContext.merchant_id,
+    await updateMerchantTokens(authContext.merchant_id, {
       access_token: json.access_token,
       refresh_token: json.refresh_token || merchant.refresh_token, // Use new refresh token if provided
       token_refreshed_at: new Date().toISOString()

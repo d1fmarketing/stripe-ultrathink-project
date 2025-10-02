@@ -1,4 +1,4 @@
-import { putMerchant } from "../shared/db.js";
+import { updateMerchantTokens, updateMerchantWebhook } from "../shared/db.js";
 import Stripe from 'stripe';
 import { createAuditLog, AuditAction, auditFailure } from "../shared/auditLog.js";
 
@@ -42,9 +42,7 @@ export async function handler(event:any){
   }
 
   // Save all OAuth data to DynamoDB
-  await putMerchant({ 
-    merchant_id,
-    stripe_account_id: merchant_id,
+  await updateMerchantTokens(merchant_id, {
     access_token, // CRITICAL: Save this for API calls
     refresh_token, // CRITICAL: Save this for token refresh
     token_type,
@@ -89,8 +87,7 @@ export async function handler(event:any){
     console.log('Webhook endpoint registered:', webhookEndpoint.id);
     
     // Save webhook endpoint ID
-    await putMerchant({
-      merchant_id,
+    await updateMerchantWebhook(merchant_id, {
       webhook_endpoint_id: webhookEndpoint.id,
       webhook_secret: webhookEndpoint.secret
     });
