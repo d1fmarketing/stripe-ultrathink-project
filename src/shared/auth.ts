@@ -1,6 +1,7 @@
 import admin from 'firebase-admin';
 import { GetCommand } from "@aws-sdk/lib-dynamodb";
 import { ddb } from "./ddb.js";
+import { auditSecurityEvent, AuditAction } from "./auditLog.js";
 
 // Initialize Firebase Admin SDK
 let firebaseApp: admin.app.App | null = null;
@@ -90,8 +91,12 @@ export async function validateAuth(authHeader: string | undefined): Promise<Auth
 export async function requireAuth(event: any): Promise<AuthContext | { statusCode: number; body: string }> {
   const authHeader = event.headers?.Authorization || event.headers?.authorization;
   const authContext = await validateAuth(authHeader);
-  
+
   if (!authContext) {
+    const detail = !authHeader || !authHeader.startsWith('Bearer ')
+      ? 'Missing or malformed Authorization header'
+      : 'Invalid or expired authentication token';
+    await auditSecurityEvent(event, AuditAction.UNAUTHORIZED_ACCESS, detail);
     return {
       statusCode: 401,
       body: JSON.stringify({ error: 'Unauthorized' })

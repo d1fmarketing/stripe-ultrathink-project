@@ -1,6 +1,7 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, GetCommand } from '@aws-sdk/lib-dynamodb';
 import { SSMClient, GetParameterCommand } from '@aws-sdk/client-ssm';
+import { auditDataMutation, AuditAction } from './auditLog.js';
 
 const client = new DynamoDBClient({});
 const ddb = DynamoDBDocumentClient.from(client);
@@ -134,6 +135,17 @@ export async function storeWebhookSecret(
     }));
     
     console.log(`[WEBHOOK] Stored webhook secret for merchant ${merchantId}`);
+
+    await auditDataMutation({
+      action: AuditAction.SETTINGS_UPDATED,
+      resourceType: 'merchant_webhook',
+      resourceId: merchantId,
+      merchantId,
+      metadata: {
+        webhookEndpointId,
+        event: 'storeWebhookSecret'
+      }
+    });
   } catch (error) {
     console.error('[WEBHOOK] Error storing webhook secret:', error);
     throw error;

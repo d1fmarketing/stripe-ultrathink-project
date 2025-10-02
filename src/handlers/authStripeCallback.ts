@@ -42,7 +42,7 @@ export async function handler(event:any){
   }
 
   // Save all OAuth data to DynamoDB
-  await putMerchant({ 
+  await putMerchant({
     merchant_id,
     stripe_account_id: merchant_id,
     access_token, // CRITICAL: Save this for API calls
@@ -53,6 +53,17 @@ export async function handler(event:any){
     livemode,
     firebase_uid, // Link to Firebase user
     oauth_connected_at: new Date().toISOString()
+  }, {
+    action: AuditAction.OAUTH_CONNECT,
+    userId: firebase_uid || undefined,
+    merchantId: merchant_id,
+    ipAddress: event.requestContext?.identity?.sourceIp,
+    userAgent: event.requestContext?.identity?.userAgent,
+    metadata: {
+      scope,
+      livemode,
+      stripe_publishable_key
+    }
   });
   
   // Audit successful OAuth connection
@@ -93,6 +104,13 @@ export async function handler(event:any){
       merchant_id,
       webhook_endpoint_id: webhookEndpoint.id,
       webhook_secret: webhookEndpoint.secret
+    }, {
+      action: AuditAction.SETTINGS_UPDATED,
+      merchantId: merchant_id,
+      userId: firebase_uid || undefined,
+      metadata: {
+        webhookEndpointId: webhookEndpoint.id
+      }
     });
   } catch (webhookError) {
     console.error('Failed to register webhook:', webhookError);

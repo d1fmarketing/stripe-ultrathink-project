@@ -1,6 +1,7 @@
 import { createErrorResponse } from './responses.js';
 import { ddb } from './ddb.js';
 import { PutCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
+import { auditSecurityEvent, AuditAction } from './auditLog.js';
 
 const RATE_LIMIT_TABLE = process.env.CASES_TABLE!; // Reuse cases table
 
@@ -101,6 +102,7 @@ export async function rateLimitMiddleware(event: any): Promise<any> {
   const allowed = await checkRateLimit(config);
   
   if (!allowed) {
+    await auditSecurityEvent(event, AuditAction.RATE_LIMITED, `Rate limit exceeded for ${config.identifier}`);
     return createErrorResponse(429, 'Too Many Requests', {
       message: 'Rate limit exceeded. Please try again later.',
       retryAfter: config.windowSeconds

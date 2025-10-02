@@ -8,6 +8,7 @@ import {
 import { CloudWatch, StandardUnit } from '@aws-sdk/client-cloudwatch';
 import { ddb } from "../shared/ddb";
 import { PutCommand } from "@aws-sdk/lib-dynamodb";
+import { auditDataMutation, AuditAction } from "../shared/auditLog.js";
 
 // ML Enhancement Imports (Safe - with fallbacks)
 let patternCache: any = null;
@@ -318,6 +319,18 @@ export async function handler(evt:any){
           }
         }));
         console.log(`📊 ML: Stored prediction for dispute ${dispute.id}: ${(evidencePackage.winProbability * 100).toFixed(1)}%`);
+
+        await auditDataMutation({
+          action: AuditAction.EVIDENCE_COLLECTED,
+          resourceType: 'ml_prediction',
+          resourceId: dispute.id,
+          merchantId: merchant.stripe_account_id,
+          metadata: {
+            modelVersion: 'heuristic-v1',
+            probability: evidencePackage.winProbability,
+            ce3Eligible: evidencePackage.ce3Eligible
+          }
+        });
       } catch (error) {
         console.error('Failed to store ML prediction:', error);
       }

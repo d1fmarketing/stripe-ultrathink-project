@@ -5,6 +5,7 @@ import { getMerchantWinRate } from "../shared/db-helpers.js";
 import { handleSubscriptionEvent } from "./subscriptionManager.js";
 import { WebhookIdempotencyService } from "../shared/webhookIdempotency.js";
 import { getMerchantWebhookSecret, validateWebhookSignature } from "../shared/webhookSecrets.js";
+import { auditSecurityEvent, AuditAction, auditDataMutation } from "../shared/auditLog.js";
 import { 
   analyzeDispute, 
   quickAssessRisk,
@@ -103,6 +104,16 @@ async function markEventProcessed(eventId: string, eventType: string): Promise<v
         ttl: Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60) // TTL: 7 days
       }
     }));
+
+    await auditDataMutation({
+      action: AuditAction.WEBHOOK_RECEIVED,
+      resourceType: 'webhook_event',
+      resourceId: eventId,
+      metadata: {
+        eventType,
+        source: 'webhookStripe.markEventProcessed'
+      }
+    });
   } catch (error) {
     console.error('Error marking event as processed:', error);
   }
@@ -128,6 +139,7 @@ export async function handler(event:any){
     evt = stripe.webhooks.constructEvent(rawBody, sig!, webhookSecret);
   }catch(e:any){
     console.error(`Webhook signature verification failed for account ${account}:`, e.message);
+    await auditSecurityEvent(event, AuditAction.UNAUTHORIZED_ACCESS, `Webhook signature verification failed: ${e.message}`);
     return { statusCode:400, body:`bad sig: ${e.message}` };
   }
 
@@ -159,6 +171,14 @@ export async function handler(event:any){
           type: 'subscription',
           firebase_uid: session.metadata?.firebase_uid || session.client_reference_id,
           updated_at: new Date().toISOString()
+        }, {
+          action: AuditAction.SUBSCRIPTION_CREATED,
+          merchantId: 'SYSTEM',
+          metadata: {
+            eventId: evt.id,
+            eventType: evt.type,
+            subscriptionId: session.subscription
+          }
         });
         
         console.log('Subscription linked to user:', session.client_reference_id);
@@ -250,6 +270,17 @@ export async function handler(event:any){
         customer_email,
         event_type: evt.type,
         updated_at: new Date().toISOString()
+      }, {
+        action: evt.type === 'customer.subscription.created'
+          ? AuditAction.SUBSCRIPTION_CREATED
+          : AuditAction.SUBSCRIPTION_UPDATED,
+        merchantId: 'SYSTEM',
+        metadata: {
+          firebase_uid,
+          customer_email,
+          eventType: evt.type,
+          subscriptionId: subscription.id
+        }
       });
       
       // Store subscription history for audit trail
@@ -263,6 +294,15 @@ export async function handler(event:any){
         timestamp: new Date().toISOString()
       }, {
         type: 'subscription_history'
+      }, {
+        action: AuditAction.SUBSCRIPTION_UPDATED,
+        merchantId: 'SYSTEM',
+        metadata: {
+          firebase_uid,
+          eventType: evt.type,
+          subscriptionId: subscription.id,
+          history: true
+        }
       });
       
       console.log(`Subscription ${action} for user ${firebase_uid}: ${subscription.status} (access: ${userAccess})`);
@@ -361,6 +401,17 @@ export async function handler(event:any){
       } : null,
       riskLevel,
       aiEnhanced: !!aiAnalysis
+    }, {
+      action: evt.type === 'charge.dispute.created'
+        ? AuditAction.DISPUTE_CREATED
+        : AuditAction.DISPUTE_UPDATED,
+      merchantId: eventAccount!,
+      metadata: {
+        eventType: evt.type,
+        disputeStatus: dispute.status,
+        riskLevel,
+        aiEnhanced: !!aiAnalysis
+      }
     });
     
     if(evt.type === 'charge.dispute.created'){
