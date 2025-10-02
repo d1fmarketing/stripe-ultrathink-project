@@ -1,6 +1,7 @@
 import { ScanCommand } from "@aws-sdk/lib-dynamodb";
 import { ddb } from "../shared/ddb.js";
 import { putMerchant } from "../shared/db.js";
+import { decryptSensitiveRecord } from "../shared/encryption.js";
 
 /**
  * Scheduled Lambda to refresh OAuth tokens before they expire
@@ -17,7 +18,7 @@ export async function handler(event: any) {
       FilterExpression: 'attribute_exists(access_token) AND attribute_exists(refresh_token)'
     }));
     
-    const merchants = scanResult.Items || [];
+    const merchants = (scanResult.Items || []).map(item => decryptSensitiveRecord(item));
     console.log(`Found ${merchants.length} merchants with OAuth tokens`);
     
     const results = {

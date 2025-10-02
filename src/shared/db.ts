@@ -1,31 +1,47 @@
 import { ddb } from "./ddb.js";
 import { PutCommand, GetCommand, QueryCommand, ScanCommand } from "@aws-sdk/lib-dynamodb";
+import { encryptSensitiveRecord, decryptSensitiveRecord } from "./encryption.js";
 
 const MERCHANTS = process.env.MERCHANTS_TABLE!;
 const CASES = process.env.CASES_TABLE!;
 
+const MERCHANT_SENSITIVE_FIELDS = [
+  'access_token',
+  'refresh_token',
+  'webhook_secret',
+  'stripe_publishable_key'
+];
+
+const CASE_SENSITIVE_FIELDS = [
+  'merchant_access_token'
+];
+
 export async function putMerchant(m:any){
   // Use stripe_account_id as the primary key for consistency
   const merchant_id = m.stripe_account_id || m.merchant_id;
-  const item = {
+  const item = encryptSensitiveRecord({
     pk: `MERCHANT#${merchant_id}`,
     merchant_id: merchant_id,
     stripe_account_id: merchant_id, // Ensure both fields are set
     ...m,
     created_at: m.created_at || new Date().toISOString()
-  };
+  }, MERCHANT_SENSITIVE_FIELDS);
   await ddb.send(new PutCommand({ TableName: MERCHANTS, Item: item }));
 }
 
 export async function getMerchantByAccount(stripe_account_id:string){
   const pk = `MERCHANT#${stripe_account_id}`;
   const r = await ddb.send(new GetCommand({ TableName: MERCHANTS, Key: { pk } }));
-  return r.Item || { pk, merchant_id: stripe_account_id, stripe_account_id, settings: { autoSubmit: true, autoAcceptBelowCents: 0, retentionDays: 540, notifyEmails: [] } };
+  if (!r.Item) {
+    return { pk, merchant_id: stripe_account_id, stripe_account_id, settings: { autoSubmit: true, autoAcceptBelowCents: 0, retentionDays: 540, notifyEmails: [] } };
+  }
+
+  return decryptSensitiveRecord(r.Item, MERCHANT_SENSITIVE_FIELDS);
 }
 
 export async function upsertCase(merchantId:string, dispute:any, extras:any={}){
   const now = Math.floor(Date.now()/1000);
-  const item = {
+  const item = encryptSensitiveRecord({
     pk: `MERCHANT#${merchantId}`,
     sk: `CASE#${dispute.id}`,
     dispute_id: dispute.id,
@@ -44,7 +60,7 @@ export async function upsertCase(merchantId:string, dispute:any, extras:any={}){
     gsi2_pk: `STATUS#${dispute.status}`,
     gsi2_sk: dispute.evidence_details?.due_by || 0,
     ...extras
-  };
+  }, CASE_SENSITIVE_FIELDS);
   await ddb.send(new PutCommand({ TableName: CASES, Item: item }));
   return item;
 }
@@ -56,7 +72,7 @@ export async function listCases(merchantId:string, status?:string){
     KeyConditionExpression: "pk = :pk",
     ExpressionAttributeValues: { ":pk": pk }
   }));
-  let items = r.Items || [];
+  let items = (r.Items || []).map(item => decryptSensitiveRecord(item, CASE_SENSITIVE_FIELDS));
   if(status) items = items.filter(i => i.status === status);
   return items.sort((a,b) => (a.due_by_epoch||0)-(b.due_by_epoch||0));
 }
@@ -64,10 +80,10 @@ export async function listCases(merchantId:string, status?:string){
 export async function getCase(merchantId:string, disputeId:string){
   const pk = `MERCHANT#${merchantId}`, sk = `CASE#${disputeId}`;
   const r = await ddb.send(new GetCommand({ TableName: CASES, Key: { pk, sk } }));
-  return r.Item;
+  return r.Item ? decryptSensitiveRecord(r.Item, CASE_SENSITIVE_FIELDS) : undefined;
 }
 
 export async function scanMerchants(){
   const r = await ddb.send(new ScanCommand({ TableName: MERCHANTS }));
-  return r.Items || [];
+  return (r.Items || []).map(item => decryptSensitiveRecord(item, MERCHANT_SENSITIVE_FIELDS));
 }
