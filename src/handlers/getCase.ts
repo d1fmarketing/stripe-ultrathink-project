@@ -2,6 +2,7 @@ import { ok, bad } from "../shared/responses.js";
 import { getCase } from "../shared/db.js";
 import { requireAuth, verifyMerchantOwnership } from "../shared/auth.js";
 import { validationMiddleware, commonSchemas } from "../shared/validation.js";
+import { rateLimitMiddleware } from "../shared/rateLimit.js";
 
 export async function handler(event:any){
   // Validate input first
@@ -40,6 +41,15 @@ export async function handler(event:any){
       statusCode: 403,
       body: JSON.stringify({ error: 'Access denied to this merchant account' })
     };
+  }
+
+  const rateLimitResult = await rateLimitMiddleware(event, {
+    authContext,
+    merchantId,
+    identifierSuffix: id
+  });
+  if (rateLimitResult) {
+    return rateLimitResult;
   }
   
   const item = await getCase(merchantId, id);

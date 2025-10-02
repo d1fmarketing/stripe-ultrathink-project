@@ -21,12 +21,6 @@ function getRedis() {
 }
 
 export async function handler(event:any){
-  // Check rate limit first
-  const rateLimitResult = await rateLimitMiddleware(event);
-  if (rateLimitResult) {
-    return rateLimitResult; // Return 429 if rate limited
-  }
-  
   // Validate input
   const validationSchema = {
     ...commonSchemas.merchantId,
@@ -63,6 +57,15 @@ export async function handler(event:any){
       statusCode: 403,
       body: JSON.stringify({ error: 'Access denied to this merchant account' })
     };
+  }
+
+  const rateLimitResult = await rateLimitMiddleware(event, {
+    authContext,
+    merchantId,
+    identifierSuffix: input.status || 'all'
+  });
+  if (rateLimitResult) {
+    return rateLimitResult;
   }
   
   // Try Redis cache first for performance

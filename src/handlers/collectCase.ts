@@ -2,6 +2,7 @@ import { bad } from "../shared/responses.js";
 import { requireAuth, verifyMerchantOwnership } from "../shared/auth.js";
 import { createAuditLog, AuditAction } from "../shared/auditLog.js";
 import { StartExecutionCommand, SFNClient as StepFunctionsClient } from "@aws-sdk/client-sfn";
+import { rateLimitMiddleware } from "../shared/rateLimit.js";
 
 const sfn = new StepFunctionsClient({});
 
@@ -26,6 +27,15 @@ export async function handler(event:any){
       statusCode: 403,
       body: JSON.stringify({ error: 'Access denied to this merchant account' })
     };
+  }
+
+  const rateLimitResult = await rateLimitMiddleware(event, {
+    authContext,
+    merchantId,
+    identifierSuffix: id
+  });
+  if (rateLimitResult) {
+    return rateLimitResult;
   }
 
   await sfn.send(new StartExecutionCommand({

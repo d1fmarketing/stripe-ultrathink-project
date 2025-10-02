@@ -2,6 +2,7 @@ import Stripe from 'stripe';
 import { ok, bad } from "../shared/responses.js";
 import { requireAuth } from "../shared/auth.js";
 import { getMerchantByAccount, putMerchant } from "../shared/db.js";
+import { rateLimitMiddleware } from "../shared/rateLimit.js";
 
 /**
  * Refresh Stripe OAuth access token using refresh token
@@ -16,6 +17,15 @@ export async function handler(event: any) {
   
   if (!authContext.merchant_id) {
     return bad('No Stripe account connected');
+  }
+
+  const rateLimitResult = await rateLimitMiddleware(event, {
+    authContext,
+    merchantId: authContext.merchant_id,
+    identifierSuffix: 'refresh-token'
+  });
+  if (rateLimitResult) {
+    return rateLimitResult;
   }
   
   try {
