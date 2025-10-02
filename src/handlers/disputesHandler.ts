@@ -2,9 +2,7 @@ import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { requireAuth, verifyMerchantOwnership } from '../shared/auth.js';
 import { listCases } from '../shared/db.js';
 import { validationMiddleware, commonSchemas } from '../shared/validation.js';
-import Stripe from 'stripe';
-
-const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion: '2025-07-30.basil' });
+import { getStripeClient } from '../shared/stripeClient';
 
 interface Dispute {
   id: string;
@@ -91,6 +89,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     }
     
     // Get REAL disputes from Stripe
+    const stripe = await getStripeClient();
     const stripeDisputes = await stripe.disputes.list(
       { limit: 100 },
       { stripeAccount: merchantId }

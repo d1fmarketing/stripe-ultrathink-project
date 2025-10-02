@@ -1,8 +1,6 @@
-import Stripe from 'stripe';
 import { ok, bad } from "../shared/responses.js";
 import { requireAuth } from "../shared/auth.js";
-
-const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion: '2025-07-30.basil' });
+import { getStripeClient } from '../shared/stripeClient';
 
 export async function handler(event: any) {
   // Get auth context if user is logged in (optional for checkout)
@@ -25,6 +23,7 @@ export async function handler(event: any) {
   }
   
   try {
+    const stripe = await getStripeClient();
     // Create or retrieve customer
     const customers = await stripe.customers.list({
       email: email,

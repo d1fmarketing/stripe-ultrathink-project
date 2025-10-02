@@ -100,14 +100,16 @@ provider:
           Action:
             - cloudwatch:PutMetricData
           Resource: '*'
+        - Effect: Allow
+          Action:
+            - secretsmanager:GetSecretValue
+          Resource:
+            - arn:aws:secretsmanager:${aws:region}:${aws:accountId}:secret:stripedshield/prod/*
   environment:
     # Environment variables - PRODUCTION from SSM
-    STRIPE_SECRET: ${ssm:/stripedshield/prod/STRIPE_SECRET~true}
     STRIPE_CLIENT_ID: ${ssm:/stripedshield/prod/STRIPE_CLIENT_ID~true}
     STRIPE_REDIRECT_URI: https://ket0g0lurh.execute-api.us-east-1.amazonaws.com/auth/stripe/callback
-    STRIPE_CONNECT_WEBHOOK_SECRET: ${ssm:/stripedshield/prod/STRIPE_WEBHOOK_SECRET~true}
-    OPENAI_API_KEY: ${ssm:/stripedshield/prod/OPENAI_API_KEY~true}
-    SERVICE_KEY: ${ssm:/stripedshield/prod/SERVICE_KEY~true}
+    SECRETS_MANAGER_PREFIX: stripedshield/prod
     # AWS Resources
     EVIDENCE_BUCKET: arn:aws:s3:::${sls:stage}-${self:service}-evidence-${aws:accountId}
     CASES_TABLE: !Ref CasesTable
@@ -117,7 +119,6 @@ provider:
     # Redis - Use SSM if available, otherwise default endpoint
     REDIS_URL: ${ssm:/stripedshield/prod/REDIS_URL, 'redis://stripedshield-redis.mot6cw.0001.use1.cache.amazonaws.com:6379'}
     # Firebase Configuration
-    FIREBASE_SERVICE_ACCOUNT: ${ssm:/stripedshield/prod/FIREBASE_SERVICE_ACCOUNT~true, ''}
     FIREBASE_PROJECT_ID: ${ssm:/stripedshield/prod/FIREBASE_PROJECT_ID, 'stripecharge-b27a6'}
     # AI Settings
     AI_ENABLED: 'true'

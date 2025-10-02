@@ -2,9 +2,7 @@ import { ok, bad } from "../shared/responses.js";
 import { requireAuth, verifyMerchantOwnership } from "../shared/auth.js";
 import { createAuditLog, AuditAction } from "../shared/auditLog.js";
 import { putMerchant, getCase } from "../shared/db.js";
-import Stripe from 'stripe';
-
-const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion: '2025-07-30.basil' });
+import { getStripeClient } from '../shared/stripeClient';
 
 // Handle subscription lifecycle events
 export async function handleSubscriptionEvent(event: any, subscriptionEvent: any) {
@@ -244,6 +242,7 @@ export async function getSubscriptionStatus(event: any) {
     let stripeSubscription = null;
     if (merchant?.subscription_id) {
       try {
+        const stripe = await getStripeClient();
         stripeSubscription = await stripe.subscriptions.retrieve(
           merchant.subscription_id,
           { expand: ['customer', 'default_payment_method'] }
@@ -321,6 +320,7 @@ export async function cancelSubscription(event: any) {
     }
     
     // Cancel subscription at period end
+    const stripe = await getStripeClient();
     const canceledSubscription = await stripe.subscriptions.update(
       merchant.subscription_id,
       { cancel_at_period_end: true }

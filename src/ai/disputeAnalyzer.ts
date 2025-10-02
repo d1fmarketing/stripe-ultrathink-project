@@ -1,10 +1,5 @@
-import OpenAI from 'openai';
 import Stripe from 'stripe';
-
-// Initialize clients
-const openai = process.env.OPENAI_API_KEY 
-  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
-  : null;
+import { getOpenAIClient } from '../shared/openaiClient';
 
 const MODEL = process.env.AI_MODEL || 'gpt-5';
 
@@ -31,8 +26,9 @@ export type AnalysisInput = {
  */
 export async function analyze(input: AnalysisInput): Promise<DisputeAnalysis> {
   const { dispute, charge, customer, history = [], priorDisputes = 0, merchantWinRate } = input;
-  
+
   // If AI not configured, use rule-based analysis
+  const openai = await getOpenAIClient();
   if (!openai) {
     return ruleBasedAnalysis(input);
   }

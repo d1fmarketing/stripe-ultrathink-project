@@ -1,6 +1,6 @@
 import { EvidenceBundler } from '../ce3-engine/evidenceBundler';
-import { 
-  collectEvidence, 
+import {
+  collectEvidence,
   generateNarrative,
   isAIEnabled,
   type EvidenceBundle
@@ -8,6 +8,7 @@ import {
 import { CloudWatch, StandardUnit } from '@aws-sdk/client-cloudwatch';
 import { ddb } from "../shared/ddb";
 import { PutCommand } from "@aws-sdk/lib-dynamodb";
+import { getStripeSecret } from '../shared/stripeClient';
 
 // ML Enhancement Imports (Safe - with fallbacks)
 let patternCache: any = null;
@@ -65,7 +66,7 @@ export async function handler(evt:any){
   const { dispute, charge, payment_intent, merchant } = evt;
   
   // Use merchant's OAuth token for connected accounts, fallback to global secret
-  const stripeKey = merchant?.access_token || process.env.STRIPE_SECRET || '';
+  const stripeKey = merchant?.access_token || await getStripeSecret();
   if (!stripeKey) {
     console.error('No Stripe key available for merchant:', merchant?.id);
     throw new Error('Missing Stripe authentication for merchant');
@@ -204,7 +205,7 @@ export async function handler(evt:any){
     // Apply ML optimizations if available
     if (mlOptimizedEvidence && fraudDetected) {
       console.log('🚨 ML: Fraud detected, adding extra verification evidence');
-      evidencePackage.fraudWarning = true;
+        (evidencePackage as any).fraudWarning = true;
     }
     
     // Extract the evidence object for Stripe submission

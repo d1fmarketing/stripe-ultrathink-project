@@ -1,5 +1,4 @@
-import Stripe from 'stripe';
-const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion:'2025-07-30.basil' });
+import { getStripeClient } from '../shared/stripeClient';
 
 export async function handler(evt:any){
   // Safely extract stripe_account_id with proper error handling
@@ -17,8 +16,9 @@ export async function handler(evt:any){
   const chargeId = (dispute.charge as string);
   
   try {
+    const stripe = await getStripeClient();
     // Retrieve charge with optional connected account
-    const ch = stripe_account_id 
+    const ch = stripe_account_id
       ? await stripe.charges.retrieve(chargeId, { stripeAccount: stripe_account_id })
       : await stripe.charges.retrieve(chargeId);
       
