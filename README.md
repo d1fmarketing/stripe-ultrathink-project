@@ -85,6 +85,20 @@ npm run build
 npx serverless deploy --stage prod
 ```
 
+### Automated deployment scripts
+
+You can automate the end-to-end build and deployment workflow with the provided helper script:
+
+```bash
+# From the repository root
+./scripts/deploy.sh --stage prod
+
+# Deploy to another stage without rebuilding artifacts
+./scripts/deploy.sh --stage dev --skip-build
+```
+
+The script installs dependencies (if needed), compiles the TypeScript project, and deploys the selected Serverless stage. It relies on the standard AWS credential environment variables and any application secrets required by the deployed Lambdas.
+
 ### Configuration
 
 Set environment variables in Lambda:
@@ -159,6 +173,15 @@ const response = await openai.chat.completions.create({
 - ✅ Core business logic
 - ✅ 68% win rate achieved
 - ✅ Performance targets met
+
+## 🔄 Continuous Integration & Deployment
+
+GitHub Actions automates testing and deployment for this repository:
+
+- **CI** runs on every pull request and push to `main`. It installs dependencies, executes Jest with `--passWithNoTests`, and builds the TypeScript project to ensure the Serverless handlers compile successfully.
+- **CD** runs after a successful `main` branch build. It deploys the `prod` stage through the Serverless framework using the `scripts/deploy.sh` helper. Configure the `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_REGION` repository secrets to enable production deployments. Additional runtime secrets (Stripe, OpenAI, Redis, etc.) should be stored in the associated GitHub environment.
+
+Trigger the workflow manually at any time with **Run workflow** from the Actions tab to redeploy on demand.
 
 ### Completed ✅
 - ✅ Redis connectivity fixed (27ms latency)
