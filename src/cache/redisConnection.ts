@@ -4,6 +4,7 @@
  */
 
 import Redis from 'ioredis';
+import { registerCleanupHandler, type CleanupContext } from '../shared/lambdaLifecycle';
 
 class RedisConnectionManager {
   private static instance: RedisConnectionManager;
@@ -11,8 +12,11 @@ class RedisConnectionManager {
   private connectionPromise: Promise<Redis> | null = null;
   private isConnecting = false;
   private isConnected = false;
+  private shutdownRegistered = false;
 
-  private constructor() {}
+  private constructor() {
+    this.registerShutdownHandler();
+  }
 
   static getInstance(): RedisConnectionManager {
     if (!RedisConnectionManager.instance) {
@@ -50,9 +54,9 @@ class RedisConnectionManager {
 
   private async connect(): Promise<Redis> {
     const REDIS_URL = process.env.REDIS_URL || 'redis://stripedshield-redis.mot6cw.0001.use1.cache.amazonaws.com:6379';
-    
+
     console.log('🔄 Connecting to Redis:', REDIS_URL.replace(/\/\/.*@/, '//***@'));
-    
+
     this.client = new Redis(REDIS_URL, {
       lazyConnect: false, // Connect immediately
       enableReadyCheck: true,
@@ -122,13 +126,50 @@ class RedisConnectionManager {
     return this.client;
   }
 
+  private registerShutdownHandler(): void {
+    if (this.shutdownRegistered) {
+      return;
+    }
+
+    registerCleanupHandler(async (context) => {
+      if (!this.client || !this.isConnected) {
+        return;
+      }
+
+      console.warn(`🛑 Gracefully closing Redis connection due to ${formatCleanupReason(context)}`);
+
+      try {
+        await this.client.quit();
+      } catch (error) {
+        console.error('Error during Redis shutdown:', (error as Error)?.message || error);
+      } finally {
+        this.resetState();
+      }
+    });
+
+    this.shutdownRegistered = true;
+  }
+
+  private resetState(): void {
+    if (this.client) {
+      this.client.removeAllListeners();
+    }
+
+    this.client = null;
+    this.isConnected = false;
+    this.isConnecting = false;
+    this.connectionPromise = null;
+  }
+
   async disconnect(): Promise<void> {
     if (this.client) {
-      await this.client.quit();
-      this.client = null;
-      this.isConnected = false;
-      this.isConnecting = false;
-      this.connectionPromise = null;
+      try {
+        await this.client.quit();
+      } catch (error) {
+        console.error('Error closing Redis connection:', (error as Error)?.message || error);
+      } finally {
+        this.resetState();
+      }
     }
   }
 
@@ -164,3 +205,15 @@ export function isRedisReady(): boolean {
 export async function closeRedisConnection(): Promise<void> {
   await redisManager.disconnect();
 }
+
+function formatCleanupReason(context: CleanupContext): string {
+  switch (context.type) {
+    case 'timeout':
+      return `timeout (remaining ${context.remainingTime ?? 0}ms)`;
+    case 'signal':
+      return context.signal ? `signal ${context.signal}` : 'process shutdown';
+    default:
+      return context.detail ?? 'manual cleanup';
+  }
+}
+
