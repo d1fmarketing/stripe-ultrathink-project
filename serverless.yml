@@ -242,6 +242,19 @@ functions:
     timeout: 10
     provisionedConcurrency: 2
     events: [{ httpApi: { path: '/health', method: get } }]
+
+  readiness:
+    handler: src/handlers/readiness.handler
+    memorySize: 1024
+    timeout: 10
+    provisionedConcurrency: 1
+    events: [{ httpApi: { path: '/health/readiness', method: get } }]
+
+  liveness:
+    handler: src/handlers/liveness.handler
+    memorySize: 512
+    timeout: 5
+    events: [{ httpApi: { path: '/health/liveness', method: get } }]
   
   metrics:
     handler: src/handlers/metrics.handler
