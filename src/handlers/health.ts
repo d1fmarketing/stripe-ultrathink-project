@@ -1,5 +1,6 @@
 import { DynamoDBClient, GetItemCommand } from "@aws-sdk/client-dynamodb";
 import { getRedisClient, isRedisReady } from "../cache/redisConnection";
+import { getRequestOrigin, handleCorsPreflight, jsonResponse } from "../shared/responses.js";
 
 const dynamo = new DynamoDBClient({});
 
@@ -9,7 +10,11 @@ const withTimeout = <T>(p: Promise<T>, ms = 350) =>
     new Promise<never>((_, rej) => setTimeout(() => rej(new Error("timeout")), ms))
   ]);
 
-export const handler = async (_evt: any, ctx: any) => {
+export const handler = async (event: any, ctx: any) => {
+  const origin = getRequestOrigin(event);
+  const preflight = handleCorsPreflight(event, 'GET,OPTIONS');
+  if (preflight) return preflight;
+
   if (ctx && typeof ctx === 'object') {
     ctx.callbackWaitsForEmptyEventLoop = false;
   }
@@ -52,19 +57,15 @@ export const handler = async (_evt: any, ctx: any) => {
     checks.dynamo = { ok: false, error: String(e?.message || e) };
   }
 
-  return {
-    statusCode: 200,
-    headers: {
-      'Content-Type': 'application/json',
-      'Cache-Control': 'no-cache'
-    },
-    body: JSON.stringify({ 
-      ok: true, 
-      degraded, 
-      checks, 
-      service: 'StripedShield',
-      version: '2.0.1',
-      ts: new Date().toISOString() 
-    })
-  };
+  return jsonResponse(200, {
+    ok: true,
+    degraded,
+    checks,
+    service: 'StripedShield',
+    version: '2.0.1',
+    ts: new Date().toISOString()
+  }, {
+    origin,
+    headers: { 'Cache-Control': 'no-cache' }
+  });
 };

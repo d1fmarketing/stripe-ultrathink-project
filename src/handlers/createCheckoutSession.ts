@@ -1,10 +1,14 @@
 import Stripe from 'stripe';
-import { ok, bad } from "../shared/responses.js";
+import { ok, bad, getRequestOrigin, handleCorsPreflight } from "../shared/responses.js";
 import { requireAuth } from "../shared/auth.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion: '2025-07-30.basil' });
 
 export async function handler(event: any) {
+  const origin = getRequestOrigin(event);
+  const preflight = handleCorsPreflight(event, 'POST,OPTIONS');
+  if (preflight) return preflight;
+
   // Get auth context if user is logged in (optional for checkout)
   let authContext = null;
   try {
@@ -21,7 +25,7 @@ export async function handler(event: any) {
   const priceId = body.price_id || process.env.STRIPE_PRICE_ID || 'price_1QWtQxDOwkStzJVXK8PqXJ0z'; // Default founder price
   
   if (!email) {
-    return bad('Email is required');
+    return bad('Email is required', { origin });
   }
   
   try {
@@ -69,13 +73,13 @@ export async function handler(event: any) {
       }
     });
     
-    return ok({ 
+    return ok({
       checkout_url: session.url,
       session_id: session.id
-    });
-    
+    }, { origin });
+
   } catch (error: any) {
     console.error('Checkout session error:', error);
-    return bad(error.message);
+    return bad(error.message, { origin });
   }
 }

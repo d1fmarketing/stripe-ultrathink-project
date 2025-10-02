@@ -1,6 +1,7 @@
 import admin from 'firebase-admin';
 import { GetCommand } from "@aws-sdk/lib-dynamodb";
 import { ddb } from "./ddb.js";
+import { createErrorResponse, getRequestOrigin } from "./responses.js";
 
 // Initialize Firebase Admin SDK
 let firebaseApp: admin.app.App | null = null;
@@ -87,17 +88,14 @@ export async function validateAuth(authHeader: string | undefined): Promise<Auth
 /**
  * Middleware to require authentication
  */
-export async function requireAuth(event: any): Promise<AuthContext | { statusCode: number; body: string }> {
+export async function requireAuth(event: any): Promise<AuthContext | { statusCode: number; headers: Record<string, string>; body: string }> {
   const authHeader = event.headers?.Authorization || event.headers?.authorization;
   const authContext = await validateAuth(authHeader);
-  
+
   if (!authContext) {
-    return {
-      statusCode: 401,
-      body: JSON.stringify({ error: 'Unauthorized' })
-    };
+    return createErrorResponse(401, 'Unauthorized', undefined, { origin: getRequestOrigin(event) });
   }
-  
+
   return authContext;
 }
 

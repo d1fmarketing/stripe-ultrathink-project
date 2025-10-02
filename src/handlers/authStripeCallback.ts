@@ -1,13 +1,18 @@
 import { putMerchant } from "../shared/db.js";
 import Stripe from 'stripe';
-import { createAuditLog, AuditAction, auditFailure } from "../shared/auditLog.js";
+import { createAuditLog, AuditAction } from "../shared/auditLog.js";
+import { createErrorResponse, getRequestOrigin, handleCorsPreflight, redirect } from "../shared/responses.js";
 
 export async function handler(event:any){
+  const origin = getRequestOrigin(event);
+  const preflight = handleCorsPreflight(event, 'GET,OPTIONS');
+  if (preflight) return preflight;
+
   const qs = event.queryStringParameters || {};
   const code = qs.code;
   const state = qs.state; // Should contain firebase_uid
-  
-  if(!code) return { statusCode:400, body:'missing code' };
+
+  if(!code) return createErrorResponse(400, 'Missing code parameter', undefined, { origin });
 
   const body = new URLSearchParams({
     client_secret: process.env.STRIPE_SECRET!,
@@ -19,7 +24,9 @@ export async function handler(event:any){
     method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body
   });
   const json:any = await r.json();
-  if(!json.stripe_user_id) return { statusCode:400, body:`oauth failed: ${JSON.stringify(json)}` };
+  if(!json.stripe_user_id) {
+    return createErrorResponse(400, 'OAuth failed', { details: json }, { origin });
+  }
 
   // Extract all OAuth data
   const merchant_id = json.stripe_user_id;
@@ -101,5 +108,5 @@ export async function handler(event:any){
 
   // Redirect to frontend connect page with success
   const frontendCallbackUrl = `https://stripedshield-founders-1755231149.netlify.app/connect.html?success=true&stripe_account_id=${merchant_id}${firebase_uid ? '&uid=' + firebase_uid : ''}`;
-  return { statusCode: 302, headers: { Location: frontendCallbackUrl }, body: '' };
+  return redirect(frontendCallbackUrl, 302, { origin });
 }

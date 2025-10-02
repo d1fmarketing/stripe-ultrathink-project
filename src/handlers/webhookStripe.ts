@@ -5,6 +5,7 @@ import { getMerchantWinRate } from "../shared/db-helpers.js";
 import { handleSubscriptionEvent } from "./subscriptionManager.js";
 import { WebhookIdempotencyService } from "../shared/webhookIdempotency.js";
 import { getMerchantWebhookSecret, validateWebhookSignature } from "../shared/webhookSecrets.js";
+import { getRequestOrigin, handleCorsPreflight, jsonResponse } from "../shared/responses.js";
 import { 
   analyzeDispute, 
   quickAssessRisk,
@@ -109,6 +110,13 @@ async function markEventProcessed(eventId: string, eventType: string): Promise<v
 }
 
 export async function handler(event:any){
+  const origin = getRequestOrigin(event);
+  const preflight = handleCorsPreflight(event, 'POST,OPTIONS');
+  if (preflight) return preflight;
+
+  const respond = (statusCode: number, payload: any) =>
+    jsonResponse(statusCode, typeof payload === 'string' ? { message: payload } : payload, { origin });
+
   const sig = event.headers['stripe-signature'] || event.headers['Stripe-Signature'];
   const rawBody = event.body;
   const account = (event.headers['stripe-account'] || event.headers['Stripe-Account']) as string | undefined;
@@ -128,13 +136,13 @@ export async function handler(event:any){
     evt = stripe.webhooks.constructEvent(rawBody, sig!, webhookSecret);
   }catch(e:any){
     console.error(`Webhook signature verification failed for account ${account}:`, e.message);
-    return { statusCode:400, body:`bad sig: ${e.message}` };
+    return respond(400, { error: 'Invalid signature', message: e.message });
   }
 
   // Check idempotency - prevent duplicate processing
   if (await WebhookIdempotencyService.isDuplicate(evt.id)) {
     console.log(`Event ${evt.id} already processed, skipping`);
-    return { statusCode: 200, body: 'duplicate event ignored' };
+    return respond(200, 'duplicate event ignored');
   }
 
   // Extract account from event if not in headers
@@ -168,7 +176,7 @@ export async function handler(event:any){
     }
     
     await WebhookIdempotencyService.markProcessed(evt.id, { type: evt.type });
-    return { statusCode: 200, body: 'subscription processed' };
+    return respond(200, 'subscription processed');
   }
   
   // Handle subscription updates with complete state management
@@ -182,7 +190,7 @@ export async function handler(event:any){
       if(!firebase_uid){
         console.warn('Subscription event without firebase_uid:', subscription.id);
         await WebhookIdempotencyService.markProcessed(evt.id, { type: evt.type });
-        return { statusCode: 200, body: 'subscription ignored - no user link' };
+        return respond(200, 'subscription ignored - no user link');
       }
       
       // Determine the action based on event type
@@ -280,7 +288,7 @@ export async function handler(event:any){
     }
     
     await WebhookIdempotencyService.markProcessed(evt.id, { type: evt.type });
-    return { statusCode: 200, body: `subscription ${evt.type} processed` };
+    return respond(200, `subscription ${evt.type} processed`);
   }
   
   // Handle invoice payment failures
@@ -299,7 +307,7 @@ export async function handler(event:any){
     }
     
     await WebhookIdempotencyService.markProcessed(evt.id, { type: evt.type });
-    return { statusCode: 200, body: 'payment failure processed' };
+    return respond(200, 'payment failure processed');
   }
 
   if(evt.type === 'charge.dispute.created' || evt.type === 'charge.dispute.updated'){
@@ -503,5 +511,5 @@ export async function handler(event:any){
   }
 
   await markEventProcessed(evt.id, evt.type);
-  return { statusCode:200, body:'ok' };
+  return respond(200, 'ok');
 }

@@ -1,6 +1,6 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import jwt from 'jsonwebtoken';
-import crypto from 'crypto';
+import { getRequestOrigin, handleCorsPreflight, jsonResponse } from '../shared/responses.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'stripedshield-demo-secret-2025';
 const JWT_EXPIRY = '7d'; // 7 days validity
@@ -43,22 +43,11 @@ const DEMO_USERS = [
 
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   const startTime = Date.now();
-  
-  // CORS headers
-  const headers = {
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-    'Access-Control-Allow-Methods': 'POST,OPTIONS'
-  };
+  const origin = getRequestOrigin(event);
 
-  // Handle OPTIONS request for CORS
-  if (event.httpMethod === 'OPTIONS') {
-    return {
-      statusCode: 200,
-      headers,
-      body: ''
-    };
+  const preflight = handleCorsPreflight(event, 'POST,OPTIONS');
+  if (preflight) {
+    return preflight;
   }
 
   try {
@@ -68,26 +57,18 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     try {
       loginRequest = JSON.parse(event.body || '{}');
     } catch (error) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({
-          success: false,
-          error: 'Invalid request body'
-        })
-      };
+      return jsonResponse(400, {
+        success: false,
+        error: 'Invalid request body'
+      }, { origin });
     }
 
     // Validate email
     if (!loginRequest.email) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({
-          success: false,
-          error: 'Email is required'
-        })
-      };
+      return jsonResponse(400, {
+        success: false,
+        error: 'Email is required'
+      }, { origin });
     }
 
     // Normalize email
@@ -128,25 +109,17 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
         expiresIn: JWT_EXPIRY
       };
 
-      return {
-        statusCode: 200,
-        headers,
-        body: JSON.stringify(response)
-      };
+      return jsonResponse(200, response, { origin });
     }
 
     // For other users, check password
     if (demoUser) {
       // Validate password
       if (!loginRequest.password || loginRequest.password !== demoUser.password) {
-        return {
-          statusCode: 401,
-          headers,
-          body: JSON.stringify({
-            success: false,
-            error: 'Invalid email or password'
-          })
-        };
+        return jsonResponse(401, {
+          success: false,
+          error: 'Invalid email or password'
+        }, { origin });
       }
 
       // Generate JWT token
@@ -178,34 +151,22 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
         expiresIn: JWT_EXPIRY
       };
 
-      return {
-        statusCode: 200,
-        headers,
-        body: JSON.stringify(response)
-      };
+      return jsonResponse(200, response, { origin });
     }
 
     // For production, would check against DynamoDB
     // For now, return error for unknown users
-    return {
-      statusCode: 401,
-      headers,
-      body: JSON.stringify({
-        success: false,
-        error: 'Invalid email or password'
-      })
-    };
+    return jsonResponse(401, {
+      success: false,
+      error: 'Invalid email or password'
+    }, { origin });
 
   } catch (error) {
     console.error('Error in auth login handler:', error);
     
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({
-        success: false,
-        error: 'Internal server error'
-      })
-    };
+    return jsonResponse(500, {
+      success: false,
+      error: 'Internal server error'
+    }, { origin });
   }
 };

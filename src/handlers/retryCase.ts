@@ -1,4 +1,4 @@
-import { ok, bad, createErrorResponse } from "../shared/responses.js";
+import { ok, bad, createErrorResponse, getRequestOrigin, handleCorsPreflight } from "../shared/responses.js";
 import { getCase } from "../shared/db.js";
 import { requireAuth, verifyMerchantOwnership } from "../shared/auth.js";
 import { StartExecutionCommand, SFNClient } from "@aws-sdk/client-sfn";
@@ -8,6 +8,10 @@ const sfn = new SFNClient({});
 const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion: '2025-07-30.basil' });
 
 export async function handler(event: any) {
+  const origin = getRequestOrigin(event);
+  const preflight = handleCorsPreflight(event, 'POST,OPTIONS');
+  if (preflight) return preflight;
+
   // REQUIRE AUTHENTICATION
   const authResult = await requireAuth(event);
   if ('statusCode' in authResult) {
@@ -17,13 +21,13 @@ export async function handler(event: any) {
   
   const disputeId = event.pathParameters?.id;
   if (!disputeId) {
-    return bad("Missing dispute ID");
+    return bad("Missing dispute ID", { origin });
   }
   
   // Get merchant ID from auth context or query params
   const merchantId = authContext.merchant_id || event.queryStringParameters?.merchant;
   if (!merchantId) {
-    return bad("No merchant account connected");
+    return bad("No merchant account connected", { origin });
   }
   
   // VERIFY USER OWNS THIS MERCHANT ACCOUNT
@@ -31,7 +35,7 @@ export async function handler(event: any) {
   if (!hasAccess) {
     return createErrorResponse(403, 'Access denied', {
       error: 'You do not have access to this merchant account'
-    });
+    }, { origin });
   }
   
   try {
@@ -40,7 +44,7 @@ export async function handler(event: any) {
     if (!caseData) {
       return createErrorResponse(404, 'Not found', {
         error: 'Dispute not found'
-      });
+      }, { origin });
     }
     
     // Check if dispute is in a retryable state
@@ -49,7 +53,7 @@ export async function handler(event: any) {
       return createErrorResponse(400, 'Invalid state', {
         error: `Cannot retry dispute in status: ${caseData.status}`,
         allowedStatuses: retryableStatuses
-      });
+      }, { origin });
     }
     
     // Get fresh dispute data from Stripe
@@ -67,7 +71,7 @@ export async function handler(event: any) {
         return createErrorResponse(400, 'Deadline passed', {
           error: 'Evidence submission deadline has passed',
           deadline: deadline.toISOString()
-        });
+        }, { origin });
       }
     }
     
@@ -99,9 +103,9 @@ export async function handler(event: any) {
         dispute_id: disputeId,
         execution_name: executionName,
         status: caseData.status,
-        deadline: dispute.evidence_details?.due_by ? 
+        deadline: dispute.evidence_details?.due_by ?
           new Date(dispute.evidence_details.due_by * 1000).toISOString() : null
-      });
+      }, { origin });
     } else {
       // Fallback: Direct evidence collection and submission
       console.log('No Step Functions configured, attempting direct retry');
@@ -194,33 +198,33 @@ export async function handler(event: any) {
             evidence_submitted: true,
             submission_result: submitResult,
             workflow: 'direct'
-          });
+          }, { origin });
         } else {
           return ok({
             message: 'Evidence staged but not submitted (manual review required)',
             dispute_id: disputeId,
             evidence_staged: true,
             workflow: 'direct'
-          });
+          }, { origin });
         }
-        
+
       } catch (directRetryError: any) {
         console.error('Direct retry failed:', directRetryError);
-        
+
         return createErrorResponse(500, 'Direct retry failed', {
           error: 'Failed to retry dispute processing',
           details: directRetryError.message,
           dispute_id: disputeId,
           workflow: 'direct'
-        });
+        }, { origin });
       }
     }
-    
+
   } catch (error: any) {
     console.error('Error retrying dispute:', error);
     return createErrorResponse(500, 'Internal error', {
       error: 'Failed to retry dispute',
       details: error.message
-    });
+    }, { origin });
   }
 }

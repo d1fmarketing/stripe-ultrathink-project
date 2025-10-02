@@ -1,6 +1,7 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { getRedisClient } from '../cache/redisConnection';
 import { DynamoDBClient, ScanCommand } from '@aws-sdk/client-dynamodb';
+import { getRequestOrigin, handleCorsPreflight, jsonResponse } from '../shared/responses.js';
 
 /**
  * Metrics endpoint for StripedShield
@@ -8,6 +9,12 @@ import { DynamoDBClient, ScanCommand } from '@aws-sdk/client-dynamodb';
  */
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   const startTime = Date.now();
+  const origin = getRequestOrigin(event);
+
+  const preflight = handleCorsPreflight(event, 'GET,OPTIONS');
+  if (preflight) {
+    return preflight;
+  }
   
   try {
     // Get Redis client from connection manager
@@ -141,41 +148,37 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       responseTimeMs: Date.now() - startTime
     };
     
-    return {
-      statusCode: 200,
+    return jsonResponse(200, {
+      ...metrics,
+      degraded: false // Redis is available
+    }, {
+      origin,
       headers: {
-        'Content-Type': 'application/json',
         'Cache-Control': 'max-age=10',
         'X-StripedShield-Version': '2.0.0'
-      },
-      body: JSON.stringify({
-        ...metrics,
-        degraded: false // Redis is available
-      }, null, 2)
-    };
-    
+      }
+    });
+
   } catch (error: any) {
     console.error('Metrics error:', error);
-    
+
     // Return partial metrics with 200 status
-    return {
-      statusCode: 200,
-      headers: {
-        'Content-Type': 'application/json',
-        'Cache-Control': 'no-cache'
-      },
-      body: JSON.stringify({
-        timestamp: new Date().toISOString(),
-        degraded: true, // Flag as degraded
-        error: 'Unable to fetch complete metrics',
-        message: error.message,
-        partial: {
-          winRate: {
-            current: 68.0,
-            definition: "Default value - Redis unavailable"
-          }
+    return jsonResponse(200, {
+      timestamp: new Date().toISOString(),
+      degraded: true, // Flag as degraded
+      error: 'Unable to fetch complete metrics',
+      message: error.message,
+      partial: {
+        winRate: {
+          current: 68.0,
+          definition: "Default value - Redis unavailable"
         }
-      })
-    };
+      }
+    }, {
+      origin,
+      headers: {
+        'Cache-Control': 'no-cache'
+      }
+    });
   }
 };

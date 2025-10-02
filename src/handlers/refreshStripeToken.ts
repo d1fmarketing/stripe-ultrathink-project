@@ -1,5 +1,5 @@
 import Stripe from 'stripe';
-import { ok, bad } from "../shared/responses.js";
+import { ok, bad, getRequestOrigin, handleCorsPreflight } from "../shared/responses.js";
 import { requireAuth } from "../shared/auth.js";
 import { getMerchantByAccount, putMerchant } from "../shared/db.js";
 
@@ -7,15 +7,19 @@ import { getMerchantByAccount, putMerchant } from "../shared/db.js";
  * Refresh Stripe OAuth access token using refresh token
  */
 export async function handler(event: any) {
+  const origin = getRequestOrigin(event);
+  const preflight = handleCorsPreflight(event, 'POST,OPTIONS');
+  if (preflight) return preflight;
+
   // REQUIRE AUTHENTICATION
   const authResult = await requireAuth(event);
   if ('statusCode' in authResult) {
     return authResult;
   }
   const authContext = authResult;
-  
+
   if (!authContext.merchant_id) {
-    return bad('No Stripe account connected');
+    return bad('No Stripe account connected', { origin });
   }
   
   try {
@@ -23,7 +27,7 @@ export async function handler(event: any) {
     const merchant = await getMerchantByAccount(authContext.stripe_account_id!);
     
     if (!merchant.refresh_token) {
-      return bad('No refresh token available. Please reconnect your Stripe account.');
+      return bad('No refresh token available. Please reconnect your Stripe account.', { origin });
     }
     
     // Refresh the token
@@ -43,7 +47,7 @@ export async function handler(event: any) {
     
     if (!json.access_token) {
       console.error('Token refresh failed:', json);
-      return bad('Failed to refresh token: ' + (json.error_description || json.error));
+      return bad('Failed to refresh token: ' + (json.error_description || json.error), { origin });
     }
     
     // Save new tokens
@@ -57,10 +61,10 @@ export async function handler(event: any) {
     return ok({
       message: 'Token refreshed successfully',
       expires_in: json.expires_in || 3600
-    });
-    
+    }, { origin });
+
   } catch (error: any) {
     console.error('Token refresh error:', error);
-    return bad('Failed to refresh token: ' + error.message);
+    return bad('Failed to refresh token: ' + error.message, { origin });
   }
 }

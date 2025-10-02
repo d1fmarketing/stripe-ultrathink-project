@@ -1,4 +1,5 @@
 import { DynamoDBClient, GetItemCommand } from "@aws-sdk/client-dynamodb";
+import { getRequestOrigin, handleCorsPreflight, jsonResponse } from "../shared/responses.js";
 
 // Minimal Redis check without heavy imports
 async function checkRedis(): Promise<{ ok: boolean; error?: string }> {
@@ -38,7 +39,11 @@ async function checkRedis(): Promise<{ ok: boolean; error?: string }> {
 
 const dynamo = new DynamoDBClient({});
 
-export const handler = async (_evt: any, ctx: any) => {
+export const handler = async (event: any, ctx: any) => {
+  const origin = getRequestOrigin(event);
+  const preflight = handleCorsPreflight(event, 'GET,OPTIONS');
+  if (preflight) return preflight;
+
   if (ctx && typeof ctx === 'object') {
     ctx.callbackWaitsForEmptyEventLoop = false;
   }
@@ -72,19 +77,15 @@ export const handler = async (_evt: any, ctx: any) => {
     }
   }
 
-  return {
-    statusCode: 200,
-    headers: { 
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*'
-    },
-    body: JSON.stringify({
-      ok: !degraded,
-      degraded,
-      checks,
-      service: 'StripedShield',
-      version: '2.0.1',
-      ts: new Date().toISOString()
-    })
-  };
+  return jsonResponse(200, {
+    ok: !degraded,
+    degraded,
+    checks,
+    service: 'StripedShield',
+    version: '2.0.1',
+    ts: new Date().toISOString()
+  }, {
+    origin,
+    headers: { 'Cache-Control': 'no-cache' }
+  });
 };

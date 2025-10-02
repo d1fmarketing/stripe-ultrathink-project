@@ -1,4 +1,4 @@
-import { ok, bad } from "../shared/responses.js";
+import { ok, bad, createErrorResponse, getRequestOrigin, handleCorsPreflight } from "../shared/responses.js";
 import { requireAuth, verifyMerchantOwnership } from "../shared/auth.js";
 import { createAuditLog, AuditAction } from "../shared/auditLog.js";
 import { putMerchant, getCase } from "../shared/db.js";
@@ -214,6 +214,10 @@ async function deactivatePremiumFeatures(merchantId: string) {
 
 // API endpoint to get subscription status
 export async function getSubscriptionStatus(event: any) {
+  const origin = getRequestOrigin(event);
+  const preflight = handleCorsPreflight(event, 'GET,OPTIONS');
+  if (preflight) return preflight;
+
   // Require authentication
   const authResult = await requireAuth(event);
   if ('statusCode' in authResult) {
@@ -224,16 +228,13 @@ export async function getSubscriptionStatus(event: any) {
   const merchantId = event.queryStringParameters?.merchant || authContext.merchant_id;
   
   if (!merchantId) {
-    return bad("No merchant account specified");
+    return bad("No merchant account specified", { origin });
   }
   
   // Verify ownership
   const hasAccess = await verifyMerchantOwnership(authContext, merchantId);
   if (!hasAccess) {
-    return {
-      statusCode: 403,
-      body: JSON.stringify({ error: 'Access denied to this merchant account' })
-    };
+    return createErrorResponse(403, 'Access denied to this merchant account', undefined, { origin });
   }
   
   try {
@@ -280,16 +281,20 @@ export async function getSubscriptionStatus(event: any) {
           canceled_at: stripeSubscription.canceled_at
         } : null
       }
-    });
-    
+    }, { origin });
+
   } catch (error: any) {
     console.error('Error getting subscription status:', error);
-    return bad(`Failed to get subscription status: ${error.message}`);
+    return bad(`Failed to get subscription status: ${error.message}`, { origin });
   }
 }
 
 // API endpoint to cancel subscription
 export async function cancelSubscription(event: any) {
+  const origin = getRequestOrigin(event);
+  const preflight = handleCorsPreflight(event, 'POST,OPTIONS');
+  if (preflight) return preflight;
+
   // Require authentication
   const authResult = await requireAuth(event);
   if ('statusCode' in authResult) {
@@ -300,16 +305,13 @@ export async function cancelSubscription(event: any) {
   const merchantId = event.queryStringParameters?.merchant || authContext.merchant_id;
   
   if (!merchantId) {
-    return bad("No merchant account specified");
+    return bad("No merchant account specified", { origin });
   }
   
   // Verify ownership
   const hasAccess = await verifyMerchantOwnership(authContext, merchantId);
   if (!hasAccess) {
-    return {
-      statusCode: 403,
-      body: JSON.stringify({ error: 'Access denied to this merchant account' })
-    };
+    return createErrorResponse(403, 'Access denied to this merchant account', undefined, { origin });
   }
   
   try {
@@ -317,7 +319,7 @@ export async function cancelSubscription(event: any) {
     const merchant = await getCase(merchantId, 'MERCHANT');
     
     if (!merchant?.subscription_id) {
-      return bad("No active subscription found");
+      return bad("No active subscription found", { origin });
     }
     
     // Cancel subscription at period end
@@ -356,10 +358,10 @@ export async function cancelSubscription(event: any) {
         cancel_at_period_end: canceledSubscription.cancel_at_period_end,
         current_period_end: (canceledSubscription as any).current_period_end
       }
-    });
-    
+    }, { origin });
+
   } catch (error: any) {
     console.error('Error canceling subscription:', error);
-    return bad(`Failed to cancel subscription: ${error.message}`);
+    return bad(`Failed to cancel subscription: ${error.message}`, { origin });
   }
 }

@@ -1,4 +1,4 @@
-import { ok, bad } from "../shared/responses.js";
+import { ok, bad, createErrorResponse, getRequestOrigin, handleCorsPreflight } from "../shared/responses.js";
 import { requireAuth, verifyMerchantOwnership } from "../shared/auth.js";
 import { createAuditLog, AuditAction } from "../shared/auditLog.js";
 import Stripe from 'stripe';
@@ -42,6 +42,10 @@ async function publishMetric(name: string, value: number, unit: string = 'Count'
 }
 
 export async function handler(event:any){
+  const origin = getRequestOrigin(event);
+  const preflight = handleCorsPreflight(event, 'POST,OPTIONS');
+  if (preflight) return preflight;
+
   // REQUIRE AUTHENTICATION
   const authResult = await requireAuth(event);
   if ('statusCode' in authResult) {
@@ -54,7 +58,7 @@ export async function handler(event:any){
   const merchantId = qs.merchant || authContext.merchant_id;
   const forceSubmit = qs.force === 'true'; // Allow forcing immediate submission
   
-  if(!merchantId || !id) return bad("missing merchant or id");
+  if(!merchantId || !id) return bad("missing merchant or id", { origin });
   
   // VERIFY USER OWNS THIS MERCHANT ACCOUNT
   const hasAccess = await verifyMerchantOwnership(authContext, merchantId);
@@ -68,10 +72,7 @@ export async function handler(event:any){
       success: false,
       errorMessage: 'Attempted to submit evidence for unauthorized merchant'
     });
-    return {
-      statusCode: 403,
-      body: JSON.stringify({ error: 'Access denied to this merchant account' })
-    };
+    return createErrorResponse(403, 'Access denied to this merchant account', undefined, { origin });
   }
 
   try {
@@ -161,7 +162,7 @@ export async function handler(event:any){
               message: `Dispute skipped due to low win probability (${(winPrediction.score * 100).toFixed(1)}%). Threshold: ${(Number(process.env.MIN_WIN_THRESHOLD || '0.45') * 100).toFixed(0)}%`
             },
             dispute
-          });
+          }, { origin });
         }
       } catch (error) {
         console.error('[AI] Win prediction failed:', error);
@@ -210,7 +211,7 @@ export async function handler(event:any){
               confidence: timingRecommendation.confidence
             },
             dispute
-          });
+          }, { origin });
         }
       } catch (error) {
         console.error('[AI] Timing optimization failed:', error);
@@ -262,10 +263,10 @@ export async function handler(event:any){
       };
     }
     
-    return ok(submissionData);
-    
+    return ok(submissionData, { origin });
+
   } catch (error: any) {
     console.error('Error submitting dispute:', error);
-    return bad(`Failed to submit dispute: ${error.message}`);
+    return bad(`Failed to submit dispute: ${error.message}`, { origin });
   }
 }
