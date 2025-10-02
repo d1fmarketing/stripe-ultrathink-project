@@ -32,11 +32,18 @@ provider:
       - '!**'
       - 'dist/handlers/**'
       - 'node_modules/**'
-  httpApi: 
+  httpApi:
     cors: true
     throttle:
       burstLimit: 1000
       rateLimit: 500
+    authorizers:
+      firebaseJwt:
+        type: jwt
+        identitySource: '$request.header.Authorization'
+        issuerUrl: https://securetoken.google.com/${ssm:/stripedshield/prod/FIREBASE_PROJECT_ID, 'stripecharge-b27a6'}
+        audience:
+          - ${ssm:/stripedshield/prod/FIREBASE_PROJECT_ID, 'stripecharge-b27a6'}
   tracing:
     lambda: Active
     apiGateway: true
@@ -135,21 +142,30 @@ functions:
     handler: src/handlers/authStripeStart.handler
     memorySize: 1536
     timeout: 10
-    events: [{ httpApi: { path: '/auth/stripe/start', method: get } }]
+    events:
+      - httpApi:
+          path: '/auth/stripe/start'
+          method: get
+          authorizer: firebaseJwt
 
   authStripeCallback:
     handler: src/handlers/authStripeCallback.handler
     memorySize: 1536
     timeout: 10
-    events: [{ httpApi: { path: '/auth/stripe/callback', method: get } }]
+    events:
+      - httpApi:
+          path: '/auth/stripe/callback'
+          method: get
+          authorizer: firebaseJwt
   authLogin:
     handler: src/handlers/authLoginHandler.handler
     memorySize: 1024
     timeout: 10
-    events: 
-      - httpApi: 
+    events:
+      - httpApi:
           path: '/auth/login'
           method: post
+          authorizer: firebaseJwt
       - httpApi:
           path: '/auth/login'
           method: options
@@ -161,28 +177,28 @@ functions:
     provisionedConcurrency: 5
     events: [{ httpApi: { path: '/webhooks/stripe', method: post } }]
 
-  getDispute: 
+  getDispute:
     handler: src/handlers/getDispute.handler
     memorySize: 1536
     timeout: 10
-  getCharge: 
+  getCharge:
     handler: src/handlers/getCharge.handler
     memorySize: 1536
     timeout: 10
-  getPaymentIntent: 
+  getPaymentIntent:
     handler: src/handlers/getPaymentIntent.handler
     memorySize: 1536
     timeout: 10
-  buildEvidence: 
+  buildEvidence:
     handler: src/handlers/buildEvidence.handler
     memorySize: 2048
     timeout: 30
     provisionedConcurrency: 5
-  stripeStageEvidence: 
+  stripeStageEvidence:
     handler: src/handlers/stripeStageEvidence.handler
     memorySize: 1536
     timeout: 15
-  stripeSubmitEvidence: 
+  stripeSubmitEvidence:
     handler: src/handlers/stripeSubmitEvidence.handler
     memorySize: 1536
     timeout: 15
@@ -191,30 +207,50 @@ functions:
     handler: src/handlers/listCases.handler
     memorySize: 1536
     timeout: 10
-    events: [{ httpApi: { path: '/cases', method: get } }]
+    events:
+      - httpApi:
+          path: '/cases'
+          method: get
+          authorizer: firebaseJwt
   getCase:
     handler: src/handlers/getCase.handler
     memorySize: 1536
     timeout: 10
     provisionedConcurrency: 2
-    events: [{ httpApi: { path: '/cases/{id}', method: get } }]
+    events:
+      - httpApi:
+          path: '/cases/{id}'
+          method: get
+          authorizer: firebaseJwt
   collectCase:
     handler: src/handlers/collectCase.handler
     memorySize: 1536
     timeout: 15
-    events: [{ httpApi: { path: '/cases/{id}/collect', method: post } }]
+    events:
+      - httpApi:
+          path: '/cases/{id}/collect'
+          method: post
+          authorizer: firebaseJwt
   submitCase:
     handler: src/handlers/submitCase.handler
     memorySize: 2048
     timeout: 30
     provisionedConcurrency: 3
-    events: [{ httpApi: { path: '/cases/{id}/submit', method: post } }]
+    events:
+      - httpApi:
+          path: '/cases/{id}/submit'
+          method: post
+          authorizer: firebaseJwt
   
   retryCase:
     handler: src/handlers/retryCase.handler
     memorySize: 2048
     timeout: 30
-    events: [{ httpApi: { path: '/cases/{id}/retry', method: post } }]
+    events:
+      - httpApi:
+          path: '/cases/{id}/retry'
+          method: post
+          authorizer: firebaseJwt
 
   reportWeekly:
     handler: src/handlers/reportWeekly.handler
@@ -241,28 +277,41 @@ functions:
     memorySize: 1024
     timeout: 10
     provisionedConcurrency: 2
-    events: [{ httpApi: { path: '/health', method: get } }]
+    events:
+      - httpApi:
+          path: '/health'
+          method: get
+          authorizer: firebaseJwt
   
   metrics:
     handler: src/handlers/metrics.handler
     memorySize: 1024
     timeout: 10
-    events: [{ httpApi: { path: '/metrics/performance', method: get } }]
+    events:
+      - httpApi:
+          path: '/metrics/performance'
+          method: get
+          authorizer: firebaseJwt
   
   stats:
     handler: src/handlers/statsHandler.handler
     memorySize: 1536
     timeout: 10
-    events: [{ httpApi: { path: '/stats', method: get } }]
+    events:
+      - httpApi:
+          path: '/stats'
+          method: get
+          authorizer: firebaseJwt
   
   disputes:
     handler: src/handlers/disputesHandler.handler
     memorySize: 1024
     timeout: 10
-    events: 
-      - httpApi: 
+    events:
+      - httpApi:
           path: '/disputes'
           method: get
+          authorizer: firebaseJwt
       - httpApi:
           path: '/disputes'
           method: options
@@ -271,32 +320,52 @@ functions:
     handler: src/handlers/debugRedis.handler
     memorySize: 1024
     timeout: 10
-    events: [{ httpApi: { path: '/debug/redis', method: get } }]
+    events:
+      - httpApi:
+          path: '/debug/redis'
+          method: get
+          authorizer: firebaseJwt
   
   subscriptionStatus:
     handler: src/handlers/subscriptionManager.getSubscriptionStatus
     memorySize: 1024
     timeout: 10
-    events: [{ httpApi: { path: '/subscription/status', method: get } }]
-  
+    events:
+      - httpApi:
+          path: '/subscription/status'
+          method: get
+          authorizer: firebaseJwt
+
   subscriptionCancel:
     handler: src/handlers/subscriptionManager.cancelSubscription
     memorySize: 1024
     timeout: 10
-    events: [{ httpApi: { path: '/subscription/cancel', method: post } }]
+    events:
+      - httpApi:
+          path: '/subscription/cancel'
+          method: post
+          authorizer: firebaseJwt
   
   # Missing functions that exist in Lambda but not in serverless.yml
   getUserDisputes:
     handler: src/handlers/getUserDisputes.handler
     memorySize: 1536
     timeout: 30
-    events: [{ httpApi: { path: '/user/disputes', method: get } }]
-  
+    events:
+      - httpApi:
+          path: '/user/disputes'
+          method: get
+          authorizer: firebaseJwt
+
   createCheckoutSession:
     handler: src/handlers/createCheckoutSession.handler
     memorySize: 1536
     timeout: 30
-    events: [{ httpApi: { path: '/subscription/checkout', method: post } }]
+    events:
+      - httpApi:
+          path: '/subscription/checkout'
+          method: post
+          authorizer: firebaseJwt
 
 # Step Functions configuration
 # The state machine is defined in resources section as CloudFormation resource
