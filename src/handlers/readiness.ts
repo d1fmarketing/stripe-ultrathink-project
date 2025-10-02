@@ -7,5 +7,5 @@ export const handler = async (_evt: any, ctx: any) => {
 
   const result = await runReadinessChecks();
 
-  return buildProbeResponse(result, { endpoint: "health" });
+  return buildProbeResponse(result, { endpoint: "readiness" });
 };
