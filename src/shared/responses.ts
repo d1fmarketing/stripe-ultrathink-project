@@ -33,11 +33,16 @@ export const bad = (msg:string) => ({
   body: JSON.stringify({ error: msg })
 });
 
-export const createErrorResponse = (statusCode: number, message: string, details?: any) => ({
+export const createErrorResponse = (
+  statusCode: number,
+  message: string,
+  details?: any,
+  extraHeaders?: Record<string, string>
+) => ({
   statusCode,
-  headers: securityHeaders,
-  body: JSON.stringify({ 
+  headers: { ...securityHeaders, ...(extraHeaders ?? {}) },
+  body: JSON.stringify({
     error: message,
-    ...details 
+    ...details
   })
 });
