@@ -1,3 +1,4 @@
+import Stripe from 'stripe';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, GetCommand } from '@aws-sdk/lib-dynamodb';
 import { SSMClient, GetParameterCommand } from '@aws-sdk/client-ssm';
@@ -7,6 +8,28 @@ const ddb = DynamoDBDocumentClient.from(client);
 const ssm = new SSMClient({});
 
 const MERCHANTS_TABLE = process.env.MERCHANTS_TABLE || 'MerchantsTable';
+const DEFAULT_TIMESTAMP_TOLERANCE_SECONDS = Number(
+  process.env.STRIPE_WEBHOOK_TIMESTAMP_TOLERANCE ?? '300'
+);
+
+let cachedStripeClient: Stripe | null = null;
+
+function getStripeClient(): Stripe {
+  if (!cachedStripeClient) {
+    cachedStripeClient = new Stripe(process.env.STRIPE_SECRET!, {
+      apiVersion: '2025-07-30.basil'
+    });
+  }
+
+  return cachedStripeClient;
+}
+
+function extractTimestamp(signature: string): number | null {
+  const match = signature.match(/t=(\d+)/);
+  if (!match) return null;
+  const parsed = Number(match[1]);
+  return Number.isFinite(parsed) ? parsed : null;
+}
 
 /**
  * Get the webhook secret for a specific merchant account
@@ -80,29 +103,44 @@ async function getGlobalWebhookSecret(): Promise<string> {
 export async function validateWebhookSignature(
   payload: string | Buffer,
   signature: string,
-  accountId?: string
-): Promise<boolean> {
-  const Stripe = require('stripe');
-  const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion: '2025-07-30.basil' });
-  
+  accountId?: string,
+  options: { toleranceSeconds?: number; stripeClient?: Stripe } = {}
+): Promise<Stripe.Event> {
+  if (!signature) {
+    throw new Error('Missing Stripe-Signature header');
+  }
+
+  const timestamp = extractTimestamp(signature);
+  if (!timestamp) {
+    throw new Error('Stripe-Signature header missing timestamp');
+  }
+
+  const toleranceSeconds = options.toleranceSeconds ?? DEFAULT_TIMESTAMP_TOLERANCE_SECONDS;
+  const now = Math.floor(Date.now() / 1000);
+  if (Math.abs(now - timestamp) > toleranceSeconds) {
+    throw new Error(`Webhook signature timestamp outside of tolerance (${toleranceSeconds}s)`);
+  }
+
+  const stripe = options.stripeClient ?? getStripeClient();
+
   try {
     // Get the appropriate webhook secret
-    const webhookSecret = accountId 
+    const webhookSecret = accountId
       ? await getMerchantWebhookSecret(accountId)
       : await getGlobalWebhookSecret();
-    
+
     // Verify the webhook signature
     const event = stripe.webhooks.constructEvent(
       payload,
       signature,
       webhookSecret
     );
-    
+
     console.log(`[WEBHOOK] Signature validated for event ${event.id}`);
-    return true;
+    return event;
   } catch (error) {
     console.error('[WEBHOOK] Signature validation failed:', error);
-    return false;
+    throw error;
   }
 }
 
