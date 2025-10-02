@@ -1,6 +1,7 @@
 import { putMerchant } from "../shared/db.js";
 import Stripe from 'stripe';
 import { createAuditLog, AuditAction, auditFailure } from "../shared/auditLog.js";
+import { fetchWithCircuitBreaker, stripeCircuitBreaker } from "../shared/circuitBreaker.js";
 
 export async function handler(event:any){
   const qs = event.queryStringParameters || {};
@@ -15,9 +16,17 @@ export async function handler(event:any){
     code, grant_type: 'authorization_code'
   });
 
-  const r = await fetch('https://connect.stripe.com/oauth/token', {
-    method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body
-  });
+  const r = await fetchWithCircuitBreaker(
+    'https://connect.stripe.com/oauth/token',
+    {
+      method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body
+    },
+    {
+      breakerId: 'stripe:oauth.exchange',
+      failureThreshold: 3,
+      cooldownPeriod: 60_000
+    }
+  );
   const json:any = await r.json();
   if(!json.stripe_user_id) return { statusCode:400, body:`oauth failed: ${JSON.stringify(json)}` };
 
@@ -74,17 +83,24 @@ export async function handler(event:any){
   // Register webhook endpoint for this connected account
   try {
     const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion: '2025-07-30.basil' });
-    const webhookEndpoint = await stripe.webhookEndpoints.create({
-      url: 'https://ket0g0lurh.execute-api.us-east-1.amazonaws.com/webhooks/stripe',
-      enabled_events: [
-        'charge.dispute.created',
-        'charge.dispute.updated', 
-        'charge.dispute.closed',
-        'charge.dispute.funds_reinstated',
-        'charge.dispute.funds_withdrawn'
-      ],
-      connect: true // This makes it a Connect webhook
-    });
+    const webhookEndpoint = await stripeCircuitBreaker(
+      'webhookEndpoints.create',
+      () => stripe.webhookEndpoints.create({
+        url: 'https://ket0g0lurh.execute-api.us-east-1.amazonaws.com/webhooks/stripe',
+        enabled_events: [
+          'charge.dispute.created',
+          'charge.dispute.updated',
+          'charge.dispute.closed',
+          'charge.dispute.funds_reinstated',
+          'charge.dispute.funds_withdrawn'
+        ],
+        connect: true // This makes it a Connect webhook
+      }),
+      {
+        failureThreshold: 3,
+        cooldownPeriod: 120_000
+      }
+    );
     
     console.log('Webhook endpoint registered:', webhookEndpoint.id);
     

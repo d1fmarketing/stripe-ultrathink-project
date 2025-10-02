@@ -3,6 +3,7 @@ import { getCase } from "../shared/db.js";
 import { requireAuth, verifyMerchantOwnership } from "../shared/auth.js";
 import { StartExecutionCommand, SFNClient } from "@aws-sdk/client-sfn";
 import Stripe from 'stripe';
+import { stripeCircuitBreaker } from "../shared/circuitBreaker.js";
 
 const sfn = new SFNClient({});
 const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion: '2025-07-30.basil' });
@@ -58,7 +59,14 @@ export async function handler(event: any) {
       stripeOptions = { stripeAccount: merchantId };
     }
     
-    const dispute = await stripe.disputes.retrieve(disputeId, stripeOptions);
+    const dispute = await stripeCircuitBreaker(
+      'disputes.retrieve',
+      () => stripe.disputes.retrieve(disputeId, stripeOptions),
+      {
+        failureThreshold: 4,
+        cooldownPeriod: 120_000
+      }
+    );
     
     // Check if evidence deadline has passed
     if (dispute.evidence_details?.due_by) {

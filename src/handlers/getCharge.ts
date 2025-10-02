@@ -1,4 +1,5 @@
 import Stripe from 'stripe';
+import { stripeCircuitBreaker } from '../shared/circuitBreaker.js';
 const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion:'2025-07-30.basil' });
 
 export async function handler(evt:any){
@@ -18,9 +19,16 @@ export async function handler(evt:any){
   
   try {
     // Retrieve charge with optional connected account
-    const ch = stripe_account_id 
-      ? await stripe.charges.retrieve(chargeId, { stripeAccount: stripe_account_id })
-      : await stripe.charges.retrieve(chargeId);
+    const ch = await stripeCircuitBreaker(
+      'charges.retrieve',
+      () => stripe_account_id
+        ? stripe.charges.retrieve(chargeId, { stripeAccount: stripe_account_id })
+        : stripe.charges.retrieve(chargeId),
+      {
+        failureThreshold: 4,
+        cooldownPeriod: 120_000
+      }
+    );
       
     return { ...evt, charge: ch };
   } catch (error: any) {

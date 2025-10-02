@@ -2,6 +2,7 @@ import Stripe from 'stripe';
 import { ok, bad } from "../shared/responses.js";
 import { requireAuth } from "../shared/auth.js";
 import { getMerchantByAccount, putMerchant } from "../shared/db.js";
+import { fetchWithCircuitBreaker } from "../shared/circuitBreaker.js";
 
 /**
  * Refresh Stripe OAuth access token using refresh token
@@ -33,11 +34,19 @@ export async function handler(event: any) {
       client_secret: process.env.STRIPE_SECRET!
     });
     
-    const response = await fetch('https://connect.stripe.com/oauth/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body
-    });
+    const response = await fetchWithCircuitBreaker(
+      'https://connect.stripe.com/oauth/token',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body
+      },
+      {
+        breakerId: 'stripe:oauth.manualRefresh',
+        failureThreshold: 3,
+        cooldownPeriod: 60_000
+      }
+    );
     
     const json: any = await response.json();
     

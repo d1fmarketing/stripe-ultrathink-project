@@ -3,6 +3,7 @@ import { requireAuth, verifyMerchantOwnership } from '../shared/auth.js';
 import { listCases } from '../shared/db.js';
 import { validationMiddleware, commonSchemas } from '../shared/validation.js';
 import Stripe from 'stripe';
+import { stripeCircuitBreaker } from '../shared/circuitBreaker.js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion: '2025-07-30.basil' });
 
@@ -91,9 +92,16 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     }
     
     // Get REAL disputes from Stripe
-    const stripeDisputes = await stripe.disputes.list(
-      { limit: 100 },
-      { stripeAccount: merchantId }
+    const stripeDisputes = await stripeCircuitBreaker(
+      'disputes.list',
+      () => stripe.disputes.list(
+        { limit: 100 },
+        { stripeAccount: merchantId }
+      ),
+      {
+        failureThreshold: 4,
+        cooldownPeriod: 120_000
+      }
     );
     
     // Get additional case data from database
