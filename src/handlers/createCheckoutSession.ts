@@ -1,6 +1,7 @@
 import Stripe from 'stripe';
 import { ok, bad } from "../shared/responses.js";
 import { requireAuth } from "../shared/auth.js";
+import { stripeCircuitBreaker } from "../shared/circuitBreaker.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion: '2025-07-30.basil' });
 
@@ -26,48 +27,69 @@ export async function handler(event: any) {
   
   try {
     // Create or retrieve customer
-    const customers = await stripe.customers.list({
-      email: email,
-      limit: 1
-    });
+    const customers = await stripeCircuitBreaker(
+      'customers.list',
+      () => stripe.customers.list({
+        email: email,
+        limit: 1
+      }),
+      {
+        failureThreshold: 3,
+        cooldownPeriod: 90_000
+      }
+    );
     
     let customer;
     if (customers.data.length > 0) {
       customer = customers.data[0];
     } else {
-      customer = await stripe.customers.create({
-        email: email,
-        metadata: {
-          firebase_uid: authContext?.uid || '',
-          source: 'stripedshield_checkout'
+      customer = await stripeCircuitBreaker(
+        'customers.create',
+        () => stripe.customers.create({
+          email: email,
+          metadata: {
+            firebase_uid: authContext?.uid || '',
+            source: 'stripedshield_checkout'
+          }
+        }),
+        {
+          failureThreshold: 3,
+          cooldownPeriod: 90_000
         }
-      });
+      );
     }
     
     // Create checkout session
-    const session = await stripe.checkout.sessions.create({
-      customer: customer.id,
-      payment_method_types: ['card'],
-      mode: 'subscription',
-      line_items: [{
-        price: priceId,
-        quantity: 1
-      }],
-      subscription_data: {
-        trial_period_days: 7,
+    const session = await stripeCircuitBreaker(
+      'checkout.sessions.create',
+      () => stripe.checkout.sessions.create({
+        customer: customer.id,
+        payment_method_types: ['card'],
+        mode: 'subscription',
+        line_items: [{
+          price: priceId,
+          quantity: 1
+        }],
+        subscription_data: {
+          trial_period_days: 7,
+          metadata: {
+            firebase_uid: authContext?.uid || '',
+            merchant_id: authContext?.merchant_id || ''
+          }
+        },
+        success_url: 'https://stripedshield-founders-1755231149.netlify.app/dashboard-protected.html?payment=success',
+        cancel_url: 'https://stripedshield-founders-1755231149.netlify.app/checkout.html?payment=cancelled',
+        client_reference_id: authContext?.uid || email, // Link to Firebase user
         metadata: {
           firebase_uid: authContext?.uid || '',
-          merchant_id: authContext?.merchant_id || ''
+          email: email
         }
-      },
-      success_url: 'https://stripedshield-founders-1755231149.netlify.app/dashboard-protected.html?payment=success',
-      cancel_url: 'https://stripedshield-founders-1755231149.netlify.app/checkout.html?payment=cancelled',
-      client_reference_id: authContext?.uid || email, // Link to Firebase user
-      metadata: {
-        firebase_uid: authContext?.uid || '',
-        email: email
+      }),
+      {
+        failureThreshold: 3,
+        cooldownPeriod: 90_000
       }
-    });
+    );
     
     return ok({ 
       checkout_url: session.url,
