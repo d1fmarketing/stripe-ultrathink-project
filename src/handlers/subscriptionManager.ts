@@ -2,6 +2,7 @@ import { ok, bad } from "../shared/responses.js";
 import { requireAuth, verifyMerchantOwnership } from "../shared/auth.js";
 import { createAuditLog, AuditAction } from "../shared/auditLog.js";
 import { putMerchant, getCase } from "../shared/db.js";
+import { IdempotencyService } from "../shared/idempotency.js";
 import Stripe from 'stripe';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion: '2025-07-30.basil' });
@@ -290,76 +291,78 @@ export async function getSubscriptionStatus(event: any) {
 
 // API endpoint to cancel subscription
 export async function cancelSubscription(event: any) {
-  // Require authentication
-  const authResult = await requireAuth(event);
-  if ('statusCode' in authResult) {
-    return authResult;
-  }
-  const authContext = authResult;
-  
-  const merchantId = event.queryStringParameters?.merchant || authContext.merchant_id;
-  
-  if (!merchantId) {
-    return bad("No merchant account specified");
-  }
-  
-  // Verify ownership
-  const hasAccess = await verifyMerchantOwnership(authContext, merchantId);
-  if (!hasAccess) {
-    return {
-      statusCode: 403,
-      body: JSON.stringify({ error: 'Access denied to this merchant account' })
-    };
-  }
-  
-  try {
-    // Get merchant data
-    const merchant = await getCase(merchantId, 'MERCHANT');
-    
-    if (!merchant?.subscription_id) {
-      return bad("No active subscription found");
+  return IdempotencyService.handleHttp(event, async () => {
+    // Require authentication
+    const authResult = await requireAuth(event);
+    if ('statusCode' in authResult) {
+      return authResult;
     }
-    
-    // Cancel subscription at period end
-    const canceledSubscription = await stripe.subscriptions.update(
-      merchant.subscription_id,
-      { cancel_at_period_end: true }
-    );
-    
-    // Update merchant record
-    await putMerchant({
-      merchant_id: merchantId,
-      subscription_cancel_at_period_end: true,
-      subscription_cancel_requested_at: new Date().toISOString()
-    });
-    
-    // Audit the cancellation
-    await createAuditLog({
-      action: AuditAction.SUBSCRIPTION_CANCELLED,
-      userId: authContext.uid,
-      userEmail: authContext.email,
-      merchantId: merchantId,
-      resourceType: 'subscription',
-      resourceId: merchant.subscription_id,
-      success: true,
-      metadata: {
-        cancel_at: canceledSubscription.cancel_at,
-        current_period_end: (canceledSubscription as any).current_period_end
+    const authContext = authResult;
+
+    const merchantId = event.queryStringParameters?.merchant || authContext.merchant_id;
+
+    if (!merchantId) {
+      return bad("No merchant account specified");
+    }
+
+    // Verify ownership
+    const hasAccess = await verifyMerchantOwnership(authContext, merchantId);
+    if (!hasAccess) {
+      return {
+        statusCode: 403,
+        body: JSON.stringify({ error: 'Access denied to this merchant account' })
+      };
+    }
+
+    try {
+      // Get merchant data
+      const merchant = await getCase(merchantId, 'MERCHANT');
+
+      if (!merchant?.subscription_id) {
+        return bad("No active subscription found");
       }
-    });
-    
-    return ok({
-      message: 'Subscription will be canceled at the end of the current billing period',
-      subscription: {
-        id: canceledSubscription.id,
-        status: canceledSubscription.status,
-        cancel_at_period_end: canceledSubscription.cancel_at_period_end,
-        current_period_end: (canceledSubscription as any).current_period_end
-      }
-    });
-    
-  } catch (error: any) {
-    console.error('Error canceling subscription:', error);
-    return bad(`Failed to cancel subscription: ${error.message}`);
-  }
+
+      // Cancel subscription at period end
+      const canceledSubscription = await stripe.subscriptions.update(
+        merchant.subscription_id,
+        { cancel_at_period_end: true }
+      );
+
+      // Update merchant record
+      await putMerchant({
+        merchant_id: merchantId,
+        subscription_cancel_at_period_end: true,
+        subscription_cancel_requested_at: new Date().toISOString()
+      });
+
+      // Audit the cancellation
+      await createAuditLog({
+        action: AuditAction.SUBSCRIPTION_CANCELLED,
+        userId: authContext.uid,
+        userEmail: authContext.email,
+        merchantId: merchantId,
+        resourceType: 'subscription',
+        resourceId: merchant.subscription_id,
+        success: true,
+        metadata: {
+          cancel_at: canceledSubscription.cancel_at,
+          current_period_end: (canceledSubscription as any).current_period_end
+        }
+      });
+
+      return ok({
+        message: 'Subscription will be canceled at the end of the current billing period',
+        subscription: {
+          id: canceledSubscription.id,
+          status: canceledSubscription.status,
+          cancel_at_period_end: canceledSubscription.cancel_at_period_end,
+          current_period_end: (canceledSubscription as any).current_period_end
+        }
+      });
+
+    } catch (error: any) {
+      console.error('Error canceling subscription:', error);
+      return bad(`Failed to cancel subscription: ${error.message}`);
+    }
+  });
 }
