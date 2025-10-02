@@ -1,6 +1,7 @@
 import { createErrorResponse } from './responses.js';
 import { ddb } from './ddb.js';
 import { PutCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
+import logger from './logger';
 
 const RATE_LIMIT_TABLE = process.env.CASES_TABLE!; // Reuse cases table
 
@@ -34,7 +35,11 @@ export async function checkRateLimit(config: RateLimitConfig): Promise<boolean> 
     
     // Check if rate limit exceeded
     if (currentCount >= config.maxRequests) {
-      console.log(`Rate limit exceeded for ${config.identifier}: ${currentCount}/${config.maxRequests}`);
+      logger.warn('Rate limit exceeded', {
+        identifier: config.identifier,
+        currentCount,
+        maxRequests: config.maxRequests,
+      });
       return false;
     }
     
@@ -51,7 +56,7 @@ export async function checkRateLimit(config: RateLimitConfig): Promise<boolean> 
     
     return true;
   } catch (error) {
-    console.error('Rate limit check error:', error);
+    logger.error('Rate limit check error', { error, identifier: config.identifier });
     // Allow request on error to avoid blocking legitimate traffic
     return true;
   }

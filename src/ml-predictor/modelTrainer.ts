@@ -1,6 +1,7 @@
 import Stripe from 'stripe';
 import { FeatureExtractor } from './featureExtractor';
 import { WinPredictor } from './winPredictor';
+import logger from '../shared/logger';
 
 export interface TrainingData {
   disputeId: string;
@@ -59,7 +60,7 @@ export class ModelTrainer {
   }
   
   async collectHistoricalData(limit: number = 1000): Promise<TrainingData[]> {
-    console.log(`Collecting historical dispute data (limit: ${limit})...`);
+    logger.info(`Collecting historical dispute data (limit: ${limit})...`);
     
     const trainingData: TrainingData[] = [];
     let hasMore = true;
@@ -94,12 +95,12 @@ export class ModelTrainer {
         }
         
       } catch (error) {
-        console.error('Error collecting historical data:', error);
+        logger.error('Error collecting historical data', { error });
         break;
       }
     }
     
-    console.log(`Collected ${trainingData.length} historical disputes for training`);
+    logger.info(`Collected ${trainingData.length} historical disputes for training`);
     this.trainingData = trainingData;
     return trainingData;
   }
@@ -169,7 +170,7 @@ export class ModelTrainer {
       throw new Error(`Insufficient training data. Need at least ${this.config.minSampleSize} samples, got ${trainingData.length}`);
     }
     
-    console.log(`Training model with ${trainingData.length} samples...`);
+    logger.info(`Training model with ${trainingData.length} samples...`);
     
     const { train, test } = this.splitData(trainingData);
     
@@ -189,22 +190,22 @@ export class ModelTrainer {
       }
       
       if (iteration % 100 === 0) {
-        console.log(`Iteration ${iteration}: Average loss = ${totalLoss / train.length}`);
+        logger.debug(`Iteration ${iteration}: Average loss = ${totalLoss / train.length}`);
       }
       
       if (totalLoss / train.length < 0.01) {
-        console.log(`Converged at iteration ${iteration}`);
+        logger.info(`Converged at iteration ${iteration}`);
         break;
       }
     }
     
     const metrics = this.evaluateModel(test, weights);
     
-    console.log('Model training complete!');
-    console.log(`Accuracy: ${(metrics.accuracy * 100).toFixed(2)}%`);
-    console.log(`Precision: ${(metrics.precision * 100).toFixed(2)}%`);
-    console.log(`Recall: ${(metrics.recall * 100).toFixed(2)}%`);
-    console.log(`F1 Score: ${(metrics.f1Score * 100).toFixed(2)}%`);
+    logger.info('Model training complete!');
+    logger.info(`Accuracy: ${(metrics.accuracy * 100).toFixed(2)}%`);
+    logger.info(`Precision: ${(metrics.precision * 100).toFixed(2)}%`);
+    logger.info(`Recall: ${(metrics.recall * 100).toFixed(2)}%`);
+    logger.info(`F1 Score: ${(metrics.f1Score * 100).toFixed(2)}%`);
     
     return metrics;
   }
@@ -328,7 +329,7 @@ export class ModelTrainer {
     const foldSize = Math.floor(trainingData.length / folds);
     const metrics: ModelMetrics[] = [];
     
-    console.log(`Running ${folds}-fold cross-validation...`);
+    logger.info(`Running ${folds}-fold cross-validation...`);
     
     for (let i = 0; i < folds; i++) {
       const testStart = i * foldSize;
@@ -340,7 +341,7 @@ export class ModelTrainer {
         ...trainingData.slice(testEnd)
       ];
       
-      console.log(`Fold ${i + 1}/${folds}: Training with ${trainFold.length} samples, testing with ${testFold.length} samples`);
+      logger.info(`Fold ${i + 1}/${folds}: Training with ${trainFold.length} samples, testing with ${testFold.length} samples`);
       
       const weights = this.initializeWeights(trainFold[0].features);
       
@@ -358,7 +359,7 @@ export class ModelTrainer {
     }
     
     const avgMetrics = this.averageMetrics(metrics);
-    console.log(`Cross-validation complete. Average accuracy: ${(avgMetrics.accuracy * 100).toFixed(2)}%`);
+    logger.info(`Cross-validation complete. Average accuracy: ${(avgMetrics.accuracy * 100).toFixed(2)}%`);
     
     return metrics;
   }
@@ -407,12 +408,12 @@ export class ModelTrainer {
   }
   
   exportModel(): string {
-    console.log('Model export functionality would save weights to S3/database');
+    logger.warn('Model export functionality would save weights to S3/database');
     return 'model_v1_' + Date.now() + '.json';
   }
   
   importModel(modelPath: string): boolean {
-    console.log(`Model import functionality would load weights from ${modelPath}`);
+    logger.warn(`Model import functionality would load weights from ${modelPath}`);
     return true;
   }
 }

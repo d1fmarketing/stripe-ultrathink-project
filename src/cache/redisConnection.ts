@@ -4,6 +4,7 @@
  */
 
 import Redis from 'ioredis';
+import logger from '../shared/logger';
 
 class RedisConnectionManager {
   private static instance: RedisConnectionManager;
@@ -51,7 +52,9 @@ class RedisConnectionManager {
   private async connect(): Promise<Redis> {
     const REDIS_URL = process.env.REDIS_URL || 'redis://stripedshield-redis.mot6cw.0001.use1.cache.amazonaws.com:6379';
     
-    console.log('🔄 Connecting to Redis:', REDIS_URL.replace(/\/\/.*@/, '//***@'));
+    logger.info('Connecting to Redis', {
+      url: REDIS_URL.replace(/\/\/.*@/, '//***@'),
+    });
     
     this.client = new Redis(REDIS_URL, {
       lazyConnect: false, // Connect immediately
@@ -59,11 +62,11 @@ class RedisConnectionManager {
       maxRetriesPerRequest: 3,
       retryStrategy: (times: number) => {
         if (times > 10) {
-          console.error('❌ Redis connection failed after 10 retries');
+          logger.error('Redis connection failed after maximum retries');
           return null;
         }
         const delay = Math.min(times * 100, 3000);
-        console.log(`⏳ Redis retry ${times} in ${delay}ms`);
+        logger.warn('Redis retry scheduled', { attempt: times, delayMs: delay });
         return delay;
       },
       connectTimeout: 10000,
@@ -80,26 +83,26 @@ class RedisConnectionManager {
 
     // Set up event handlers
     this.client.on('connect', () => {
-      console.log('✅ Redis connected successfully');
+      logger.info('Redis connected successfully');
       this.isConnected = true;
     });
 
     this.client.on('ready', () => {
-      console.log('🚀 Redis ready for commands');
+      logger.info('Redis ready for commands');
     });
 
     this.client.on('error', (err) => {
-      console.error('❌ Redis error:', err.message);
+      logger.error('Redis error', { error: err });
       // Don't set isConnected to false here, as Redis might recover
     });
 
     this.client.on('close', () => {
-      console.log('🔌 Redis connection closed');
+      logger.warn('Redis connection closed');
       this.isConnected = false;
     });
 
     this.client.on('reconnecting', () => {
-      console.log('🔄 Redis reconnecting...');
+      logger.info('Redis reconnecting');
     });
 
     // Wait for ready event
@@ -150,7 +153,7 @@ export async function getRedisClient(): Promise<Redis | null> {
   try {
     return await redisManager.getClient();
   } catch (error) {
-    console.error('Failed to get Redis client:', error);
+    logger.error('Failed to get Redis client', { error });
     return null;
   }
 }

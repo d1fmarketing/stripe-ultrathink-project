@@ -3,6 +3,7 @@ import { getCase } from "../shared/db.js";
 import { requireAuth, verifyMerchantOwnership } from "../shared/auth.js";
 import { StartExecutionCommand, SFNClient } from "@aws-sdk/client-sfn";
 import Stripe from 'stripe';
+import logger from '../shared/logger';
 
 const sfn = new SFNClient({});
 const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion: '2025-07-30.basil' });
@@ -92,7 +93,7 @@ export async function handler(event: any) {
         input: JSON.stringify(sfnInput)
       }));
       
-      console.log(`Started retry for dispute ${disputeId} with execution: ${executionName}`);
+      logger.info('Started dispute retry', { disputeId, executionName });
       
       return ok({
         message: 'Retry initiated successfully',
@@ -104,7 +105,7 @@ export async function handler(event: any) {
       });
     } else {
       // Fallback: Direct evidence collection and submission
-      console.log('No Step Functions configured, attempting direct retry');
+      logger.warn('No Step Functions configured, attempting direct retry', { disputeId });
       
       try {
         // Import the necessary handlers dynamically
@@ -115,7 +116,7 @@ export async function handler(event: any) {
         const { handler: stageEvidenceHandler } = await import('./stripeStageEvidence.js');
         const { handler: submitEvidenceHandler } = await import('./stripeSubmitEvidence.js');
         
-        console.log('Starting direct retry workflow for dispute:', disputeId);
+        logger.info('Starting direct retry workflow', { disputeId });
         
         // Step 1: Get fresh dispute data
         const disputeEvent = {
@@ -147,7 +148,7 @@ export async function handler(event: any) {
             const paymentIntentResponse = await getPaymentIntentHandler(paymentIntentEvent);
             paymentIntent = JSON.parse(paymentIntentResponse.body);
           } catch (piError) {
-            console.log('Payment intent not found, continuing without it');
+            logger.warn('Payment intent not found during retry, continuing', { disputeId, paymentIntentId: freshDispute.payment_intent });
           }
         }
         
@@ -186,7 +187,7 @@ export async function handler(event: any) {
           };
           const submitResult = await submitEvidenceHandler(submitEvent);
           
-          console.log('Direct retry completed successfully:', submitResult);
+          logger.info('Direct retry completed successfully', { disputeId, result: submitResult });
           
           return ok({
             message: 'Evidence submitted successfully via direct retry',
@@ -205,7 +206,7 @@ export async function handler(event: any) {
         }
         
       } catch (directRetryError: any) {
-        console.error('Direct retry failed:', directRetryError);
+        logger.error('Direct retry failed', { error: directRetryError, disputeId });
         
         return createErrorResponse(500, 'Direct retry failed', {
           error: 'Failed to retry dispute processing',
@@ -217,7 +218,7 @@ export async function handler(event: any) {
     }
     
   } catch (error: any) {
-    console.error('Error retrying dispute:', error);
+    logger.error('Error retrying dispute', { error, disputeId });
     return createErrorResponse(500, 'Internal error', {
       error: 'Failed to retry dispute',
       details: error.message

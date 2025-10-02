@@ -7,6 +7,7 @@
 import { cache } from './redisClient';
 import crypto from 'crypto';
 import type Stripe from 'stripe';
+import logger from '../shared/logger';
 
 export interface DisputePattern {
   reason: string;
@@ -83,7 +84,11 @@ export class PatternCache {
     
     // Return win rate if we have enough confidence
     if (stats.confidence > 0.7 && stats.total_seen >= 10) {
-      console.log(`🚀 PATTERN CACHE HIT! Win rate: ${stats.win_rate}% (${stats.total_seen} samples)`);
+      logger.debug('Pattern cache hit', {
+        winRate: stats.win_rate,
+        totalSeen: stats.total_seen,
+        fingerprint,
+      });
       return stats.win_rate;
     }
     
@@ -142,7 +147,11 @@ export class PatternCache {
     // Add to sorted set for ranking
     await cache.zadd('pattern:rankings', stats.win_rate, fingerprint);
     
-    console.log(`📊 Pattern updated: ${fingerprint} - Win rate: ${stats.win_rate.toFixed(1)}% (${stats.total_seen} samples)`);
+    logger.debug('Pattern updated', {
+      fingerprint,
+      winRate: Number(stats.win_rate.toFixed(1)),
+      totalSamples: stats.total_seen,
+    });
   }
   
   /**
@@ -198,7 +207,7 @@ export class PatternCache {
    */
   async clearCache(): Promise<void> {
     // Would implement pattern-based deletion
-    console.warn('⚠️ Pattern cache clear requested - not implemented for safety');
+    logger.warn('Pattern cache clear requested - not implemented for safety');
   }
   
   // Helper methods
@@ -284,7 +293,7 @@ export const patternCache = PatternCache.getInstance();
 
 // Auto-warm cache on startup (optional)
 export async function warmCache(): Promise<void> {
-  console.log('🔥 Warming pattern cache...');
+  logger.info('Warming pattern cache');
   const patterns = await patternCache.bulkLoadPatterns();
-  console.log(`✅ Loaded ${patterns.size} patterns into memory`);
+  logger.info('Pattern cache warmed', { loadedPatterns: patterns.size });
 }

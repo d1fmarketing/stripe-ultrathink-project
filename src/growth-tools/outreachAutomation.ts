@@ -1,3 +1,5 @@
+import logger from '../shared/logger';
+
 export interface EmailCampaign {
   id: string;
   name: string;
@@ -275,7 +277,10 @@ See full details in your dashboard: [link]
     // - Amazon SES
     // - Postmark
     
-    console.log(`Starting campaign ${campaign.name} with ${campaign.recipients.length} recipients`);
+    logger.info('Starting outreach campaign', {
+      campaignName: campaign.name,
+      recipientCount: campaign.recipients.length,
+    });
     this.processNextBatch(campaignId);
   }
   
@@ -311,9 +316,11 @@ See full details in your dashboard: [link]
     
     const personalizedEmail = this.personalizeEmail(sequence, recipient, campaign);
     
-    console.log(`Sending email to ${recipient.email}:`, {
+    logger.info('Sending outreach email', {
+      campaignId: campaign.id,
+      recipientEmail: recipient.email,
       subject: personalizedEmail.subject,
-      preview: personalizedEmail.body.substring(0, 100) + '...'
+      preview: personalizedEmail.body.substring(0, 100) + '...',
     });
     
     // Update recipient

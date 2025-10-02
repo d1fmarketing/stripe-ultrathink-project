@@ -9,6 +9,7 @@ import { feedbackLoop } from './feedbackLoop';
 import { patternCache } from '../cache/patternCache';
 import { scoreCache } from '../cache/scoreCache';
 import type { Features, Prediction } from '../ai/winPredictor';
+import logger from '../shared/logger';
 
 export interface ModelVersion {
   version: string;
@@ -119,7 +120,10 @@ export class ModelUpdater {
       this.currentVersion = existingVersion;
     }
     
-    console.log(`🎯 Model Updater initialized - Version: ${this.currentVersion.version} - Win Rate: ${this.currentVersion.performance.winRate}%`);
+    logger.info('Model updater initialized', {
+      version: this.currentVersion.version,
+      winRate: this.currentVersion.performance.winRate,
+    });
   }
   
   /**
@@ -133,7 +137,7 @@ export class ModelUpdater {
     performanceThreshold: 0.7
   }): Promise<ModelVersion | null> {
     if (this.updateInProgress) {
-      console.log('⏳ Model update already in progress...');
+      logger.debug('Model update already in progress');
       return null;
     }
     
@@ -144,7 +148,10 @@ export class ModelUpdater {
       const learningData = await feedbackLoop.exportLearningData();
       
       if (learningData.outcomes.length < strategy.minSamples) {
-        console.log(`📊 Not enough data for update: ${learningData.outcomes.length}/${strategy.minSamples} samples`);
+        logger.info('Not enough data for model update', {
+          available: learningData.outcomes.length,
+          required: strategy.minSamples,
+        });
         return null;
       }
       
@@ -166,7 +173,10 @@ export class ModelUpdater {
       if (newVersion && this.isImprovement(newVersion)) {
         // Save and activate new model
         await this.activateModel(newVersion);
-        console.log(`✅ Model updated to v${newVersion.version} - Win Rate: ${newVersion.performance.winRate}%`);
+        logger.info('Model updated', {
+          version: newVersion.version,
+          winRate: newVersion.performance.winRate,
+        });
         return newVersion;
       }
       
@@ -233,7 +243,9 @@ export class ModelUpdater {
    * Batch update - retrain on all available data
    */
   private async batchUpdate(learningData: any): Promise<ModelVersion> {
-    console.log(`🔄 Batch update with ${learningData.outcomes.length} samples...`);
+    logger.info('Starting batch model update', {
+      samples: learningData.outcomes.length,
+    });
     
     // Split data into training and validation sets
     const splitIndex = Math.floor(learningData.outcomes.length * 0.8);
@@ -270,7 +282,7 @@ export class ModelUpdater {
    * Reinforcement learning update - learn from win/loss patterns
    */
   private async reinforcementUpdate(learningData: any): Promise<ModelVersion> {
-    console.log(`🧠 Reinforcement learning update...`);
+    logger.info('Starting reinforcement learning update');
     
     const currentWeights = { ...this.currentVersion!.weights };
     const improvements: string[] = [];
@@ -430,11 +442,18 @@ export class ModelUpdater {
     const improvements = [winRateImproved, accuracyImproved, f1Improved].filter(Boolean).length;
     
     if (improvements >= 2) {
-      console.log(`✨ Model improvement detected:
-        Win Rate: ${currentPerf.winRate.toFixed(1)}% → ${newPerf.winRate.toFixed(1)}%
-        Accuracy: ${(currentPerf.accuracy * 100).toFixed(1)}% → ${(newPerf.accuracy * 100).toFixed(1)}%
-        F1 Score: ${currentPerf.f1Score.toFixed(3)} → ${newPerf.f1Score.toFixed(3)}
-      `);
+      logger.info('Model improvement detected', {
+        previous: {
+          winRate: Number(currentPerf.winRate.toFixed(1)),
+          accuracy: Number((currentPerf.accuracy * 100).toFixed(1)),
+          f1Score: Number(currentPerf.f1Score.toFixed(3)),
+        },
+        next: {
+          winRate: Number(newPerf.winRate.toFixed(1)),
+          accuracy: Number((newPerf.accuracy * 100).toFixed(1)),
+          f1Score: Number(newPerf.f1Score.toFixed(3)),
+        },
+      });
       return true;
     }
     
@@ -460,7 +479,10 @@ export class ModelUpdater {
     // Warm cache with common patterns using new model
     await this.warmCacheWithNewModel(version);
     
-    console.log(`🚀 Model v${version.version} activated - Win Rate: ${version.performance.winRate}%`);
+    logger.info('Model activated', {
+      version: version.version,
+      winRate: version.performance.winRate,
+    });
   }
   
   /**
@@ -470,14 +492,14 @@ export class ModelUpdater {
     const history = await this.getVersionHistory();
     
     if (history.length < 2) {
-      console.log('❌ No previous version to rollback to');
+      logger.warn('No previous model version available for rollback');
       return null;
     }
     
     const previousVersion = history[1]; // Second most recent
     await this.activateModel(previousVersion);
     
-    console.log(`⏪ Rolled back to model v${previousVersion.version}`);
+    logger.warn('Rolled back to previous model', { version: previousVersion.version });
     return previousVersion;
   }
   
@@ -867,7 +889,7 @@ export class ModelUpdater {
   }
   
   private async warmCacheWithNewModel(version: ModelVersion): Promise<void> {
-    console.log('🔥 Warming cache with new model...');
+    logger.info('Warming cache with new model');
     
     // Get common patterns
     const topPatterns = await patternCache.getTopPatterns(100);
@@ -878,7 +900,7 @@ export class ModelUpdater {
       // Implementation depends on pattern structure
     }
     
-    console.log('✅ Cache warmed with new model predictions');
+    logger.info('Cache warmed with new model predictions');
   }
   
   private calculateConfidence(features: Features): number {
@@ -904,16 +926,19 @@ export function startAutoUpdate(): void {
     const shouldUpdate = await shouldTriggerUpdate();
     
     if (shouldUpdate) {
-      console.log('🔄 Auto-update triggered...');
+      logger.info('Auto-update triggered');
       const newVersion = await modelUpdater.updateModel({
         type: 'incremental',
         frequency: 60,
         minSamples: 50,
         performanceThreshold: 0.7
       });
-      
+
       if (newVersion) {
-        console.log(`✅ Auto-updated to v${newVersion.version} - Win Rate: ${newVersion.performance.winRate}%`);
+        logger.info('Auto-update completed', {
+          version: newVersion.version,
+          winRate: newVersion.performance.winRate,
+        });
       }
     }
   }, 3600000); // 1 hour
@@ -930,7 +955,9 @@ async function shouldTriggerUpdate(): Promise<boolean> {
   
   // Check if performance is declining
   if (learningData.performance.winRate < 65) {
-    console.log('⚠️ Performance declining - triggering update');
+    logger.warn('Model performance declining, triggering update', {
+      winRate: learningData.performance.winRate,
+    });
     return true;
   }
   
@@ -939,7 +966,10 @@ async function shouldTriggerUpdate(): Promise<boolean> {
   const recentWinRate = recentOutcomes.filter(o => o.outcome === 'won').length / recentOutcomes.length * 100;
   
   if (Math.abs(recentWinRate - learningData.performance.winRate) > 10) {
-    console.log('📊 Pattern shift detected - triggering update');
+    logger.warn('Pattern shift detected, triggering update', {
+      recentWinRate,
+      baselineWinRate: learningData.performance.winRate,
+    });
     return true;
   }
   
@@ -950,6 +980,10 @@ async function shouldTriggerUpdate(): Promise<boolean> {
 setInterval(async () => {
   const model = modelUpdater;
   if (model.currentVersion) {
-    console.log(`🤖 Model v${model.currentVersion.version} - Win: ${model.currentVersion.performance.winRate.toFixed(1)}% | F1: ${model.currentVersion.performance.f1Score.toFixed(3)}`);
+    logger.info('Model performance snapshot', {
+      version: model.currentVersion.version,
+      winRate: Number(model.currentVersion.performance.winRate.toFixed(1)),
+      f1Score: Number(model.currentVersion.performance.f1Score.toFixed(3)),
+    });
   }
 }, 600000); // 10 minutes

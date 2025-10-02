@@ -1,6 +1,7 @@
 import { ddb } from './ddb.js';
 import { PutCommand } from '@aws-sdk/lib-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
+import logger from './logger';
 
 const AUDIT_TABLE = process.env.AUDIT_TABLE || process.env.CASES_TABLE!;
 
@@ -81,17 +82,17 @@ export async function createAuditLog(entry: Omit<AuditLogEntry, 'id' | 'timestam
     }));
     
     // Log to CloudWatch for real-time monitoring
-    console.log('AUDIT:', JSON.stringify({
+    logger.info('Audit log created', {
       action: auditEntry.action,
       userId: auditEntry.userId,
       resourceId: auditEntry.resourceId,
       success: auditEntry.success,
-      correlationId: auditEntry.correlationId
-    }));
-    
+      correlationId: auditEntry.correlationId,
+    });
+
   } catch (error) {
     // Don't fail the operation if audit logging fails
-    console.error('Failed to create audit log:', error);
+    logger.error('Failed to create audit log', { error, action: entry.action });
   }
 }
 
@@ -136,7 +137,7 @@ export async function auditMiddleware(
       }
     });
   } catch (error) {
-    console.error('Audit middleware error:', error);
+    logger.error('Audit middleware error', { error, action });
   }
 }
 
@@ -173,7 +174,7 @@ export async function auditFailure(
       }
     });
   } catch (auditError) {
-    console.error('Failed to audit failure:', auditError);
+    logger.error('Failed to audit failure', { error: auditError, action });
   }
 }
 
@@ -205,10 +206,10 @@ export async function auditSecurityEvent(
     });
     
     // Alert on security events (could trigger SNS notification)
-    console.error('SECURITY_EVENT:', action, details, identity.sourceIp);
-    
+    logger.warn('Security event recorded', { action, details, sourceIp: identity.sourceIp });
+
   } catch (error) {
-    console.error('Failed to audit security event:', error);
+    logger.error('Failed to audit security event', { error, action });
   }
 }
 
@@ -226,6 +227,6 @@ export async function getAuditLogs(
 ): Promise<AuditLogEntry[]> {
   // Implementation would query DynamoDB with filters
   // This is a placeholder for the query logic
-  console.log('Getting audit logs with filters:', filters);
+  logger.debug('Fetching audit logs with filters', filters);
   return [];
 }

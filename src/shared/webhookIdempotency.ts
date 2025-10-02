@@ -1,5 +1,6 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, PutCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
+import logger from './logger';
 
 const client = new DynamoDBClient({});
 const ddb = DynamoDBDocumentClient.from(client);
@@ -25,13 +26,13 @@ export class WebhookIdempotencyService {
       
       // If item exists, it's a duplicate
       if (result.Item) {
-        console.log(`[IDEMPOTENCY] Duplicate webhook detected: ${eventId}`);
+        logger.info('Duplicate webhook detected', { eventId });
         return true;
       }
-      
+
       return false;
     } catch (error) {
-      console.error('[IDEMPOTENCY] Error checking duplicate:', error);
+      logger.error('Error checking webhook duplicate status', { error, eventId });
       // On error, assume not duplicate to avoid blocking
       return false;
     }
@@ -58,9 +59,9 @@ export class WebhookIdempotencyService {
         }
       }));
       
-      console.log(`[IDEMPOTENCY] Marked webhook as processed: ${eventId}`);
+      logger.info('Marked webhook as processed', { eventId, metadata });
     } catch (error) {
-      console.error('[IDEMPOTENCY] Error marking processed:', error);
+      logger.error('Error marking webhook as processed', { error, eventId });
       // Continue processing even if we can't mark it
     }
   }
@@ -77,7 +78,7 @@ export class WebhookIdempotencyService {
   ): Promise<T | null> {
     // Check for duplicate
     if (await this.isDuplicate(eventId)) {
-      console.log(`[IDEMPOTENCY] Skipping duplicate event: ${eventId}`);
+      logger.info('Skipping duplicate webhook event', { eventId });
       return null;
     }
     

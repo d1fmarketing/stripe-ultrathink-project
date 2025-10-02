@@ -11,6 +11,7 @@ import { fraudTracker } from '../cache/fraudTracker';
 import type Stripe from 'stripe';
 import { Features, Prediction } from '../ai/winPredictor';
 import crypto from 'crypto';
+import logger from '../shared/logger';
 
 export interface DisputeOutcome {
   disputeId: string;
@@ -131,7 +132,10 @@ export class FeedbackLoop {
       await this.trackSuccessfulNarrative(fingerprint, narrativeUsed);
     }
     
-    console.log(`📚 Feedback recorded: Dispute ${dispute.id} - Outcome: ${outcome.outcome} - Learning applied`);
+    logger.info('Feedback recorded', {
+      disputeId: dispute.id,
+      outcome: outcome.outcome,
+    });
   }
   
   /**
@@ -176,7 +180,10 @@ export class FeedbackLoop {
     // Track learning signals
     await this.trackLearningSignals(outcome, error, weights);
     
-    console.log(`🧠 Model learned from outcome - Error: ${error.toFixed(3)} - Weights updated`);
+    logger.debug('Model weights updated from outcome', {
+      disputeId: outcome.disputeId,
+      error: Number(error.toFixed(3)),
+    });
   }
   
   /**
@@ -240,7 +247,12 @@ export class FeedbackLoop {
         await cache.set(`pattern:insight:${pattern.id}`, insight, 86400 * 30);
         
         // Alert about new pattern
-        console.log(`✨ NEW WINNING PATTERN DISCOVERED! Win rate: ${pattern.winRate * 100}% - ${pattern.description}`);
+        logger.info('New winning pattern discovered', {
+          patternId: pattern.id,
+          winRate: pattern.winRate * 100,
+          samples: pattern.samples,
+          description: pattern.description,
+        });
         
         // Auto-apply pattern to similar future disputes
         await this.registerAutoPattern(pattern);
@@ -304,14 +316,14 @@ export class FeedbackLoop {
     
     // Log performance every 10 disputes
     if (performance.totalDisputes % 10 === 0) {
-      console.log(`📊 Model Performance Update:
-        Win Rate: ${performance.winRate.toFixed(1)}%
-        Accuracy: ${(performance.accuracy * 100).toFixed(1)}%
-        Precision: ${(performance.precision * 100).toFixed(1)}%
-        Recall: ${(performance.recall * 100).toFixed(1)}%
-        F1 Score: ${performance.f1Score.toFixed(3)}
-        Total Disputes: ${performance.totalDisputes}
-      `);
+      logger.info('Model performance update', {
+        winRate: Number(performance.winRate.toFixed(1)),
+        accuracy: Number((performance.accuracy * 100).toFixed(1)),
+        precision: Number((performance.precision * 100).toFixed(1)),
+        recall: Number((performance.recall * 100).toFixed(1)),
+        f1Score: Number(performance.f1Score.toFixed(3)),
+        totalDisputes: performance.totalDisputes,
+      });
     }
   }
   
@@ -767,12 +779,15 @@ export function startAutoLearning(): void {
   // Check for new outcomes every 5 minutes
   setInterval(async () => {
     const performance = await feedbackLoop.getPerformance();
-    console.log(`🤖 Auto-learning active - Win rate: ${performance.winRate.toFixed(1)}% - Disputes: ${performance.totalDisputes}`);
-    
+    logger.info('Auto-learning status', {
+      winRate: Number(performance.winRate.toFixed(1)),
+      disputes: performance.totalDisputes,
+    });
+
     // Get recommendations if performance drops
     if (performance.winRate < 70) {
       const recommendations = await feedbackLoop.getRecommendations();
-      console.log('📋 Learning recommendations:', recommendations);
+      logger.warn('Learning recommendations generated', { recommendations });
     }
   }, 300000); // 5 minutes
 }
@@ -781,6 +796,10 @@ export function startAutoLearning(): void {
 setInterval(async () => {
   const performance = await feedbackLoop.getPerformance();
   if (performance.totalDisputes > 0) {
-    console.log(`📈 ML Performance - Win: ${performance.winRate.toFixed(1)}% | Accuracy: ${(performance.accuracy * 100).toFixed(1)}% | F1: ${performance.f1Score.toFixed(3)}`);
+    logger.info('ML performance snapshot', {
+      winRate: Number(performance.winRate.toFixed(1)),
+      accuracy: Number((performance.accuracy * 100).toFixed(1)),
+      f1Score: Number(performance.f1Score.toFixed(3)),
+    });
   }
 }, 600000); // 10 minutes

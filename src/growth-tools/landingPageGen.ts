@@ -1,3 +1,5 @@
+import logger from '../shared/logger';
+
 export interface LandingPage {
   id: string;
   url: string;
@@ -242,11 +244,11 @@ export class LandingPageGenerator {
   }
   
   updateMetrics(pageId: string, metrics: Partial<PageMetrics>): void {
-    console.log(`Updating metrics for page ${pageId}:`, metrics);
+    logger.info('Updating landing page metrics', { pageId, metrics });
   }
-  
+
   getTopPerformers(limit: number = 5): LandingPage[] {
-    console.log(`Retrieving top ${limit} performing pages`);
+    logger.info('Retrieving top performing pages', { limit });
     return [];
   }
   

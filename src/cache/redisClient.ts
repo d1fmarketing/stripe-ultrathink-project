@@ -5,6 +5,7 @@
 
 import Redis from 'ioredis';
 import { createClient } from 'redis';
+import logger from '../shared/logger';
 
 // Redis configuration with fallback to known endpoint
 const REDIS_URL = process.env.REDIS_URL || 'redis://stripedshield-redis.mot6cw.0001.use1.cache.amazonaws.com:6379';
@@ -39,7 +40,9 @@ let redisOptions: any = {
 // If REDIS_URL is provided, use it directly
 if (process.env.REDIS_URL || REDIS_URL) {
   const url = process.env.REDIS_URL || REDIS_URL;
-  console.log('Connecting to Redis URL:', url.replace(/\/\/.*@/, '//***@'));
+  logger.info('Connecting to Redis', {
+    url: url.replace(/\/\/.*@/, '//***@'),
+  });
   redisOptions = url;
 }
 
@@ -54,15 +57,15 @@ export const redisClient = createClient({
 
 // Connection handlers
 redis.on('connect', () => {
-  console.log('✅ Redis connected (ioredis)');
+  logger.info('Redis connected', { client: 'ioredis' });
 });
 
 redis.on('error', (err) => {
-  console.error('❌ Redis error:', err);
+  logger.error('Redis error', { error: err });
 });
 
 redis.on('ready', () => {
-  console.log('🚀 Redis ready for commands');
+  logger.info('Redis ready for commands');
 });
 
 // Helper functions for common operations
