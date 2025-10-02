@@ -1,14 +1,19 @@
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
 import { getRedisClient } from '../cache/redisConnection';
 import { DynamoDBClient, ScanCommand } from '@aws-sdk/client-dynamodb';
+import { setupLambdaTimeout } from '../shared/lambdaLifecycle';
 
 /**
  * Metrics endpoint for StripedShield
  * Returns performance metrics and win rate statistics
  */
-export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+export const handler = async (event: APIGatewayProxyEvent, context: Context): Promise<APIGatewayProxyResult> => {
   const startTime = Date.now();
-  
+  const cancelTimeoutGuard = setupLambdaTimeout(context, {
+    bufferMs: 1000,
+    logger: (message) => console.warn(`[metrics] ${message}`)
+  });
+
   try {
     // Get Redis client from connection manager
     const redis = await getRedisClient();
@@ -91,7 +96,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     const customerROI = ((monthlyValueRecovered - monthlyFee) / monthlyFee * 100).toFixed(1);
     
     await redis.quit();
-    
+
     const metrics = {
       timestamp: new Date().toISOString(),
       service: 'StripedShield',
@@ -156,7 +161,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     
   } catch (error: any) {
     console.error('Metrics error:', error);
-    
+
     // Return partial metrics with 200 status
     return {
       statusCode: 200,
@@ -177,5 +182,8 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
         }
       })
     };
+  }
+  finally {
+    cancelTimeoutGuard();
   }
 };
