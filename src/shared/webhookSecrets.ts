@@ -1,6 +1,7 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, GetCommand } from '@aws-sdk/lib-dynamodb';
 import { SSMClient, GetParameterCommand } from '@aws-sdk/client-ssm';
+import Stripe from 'stripe';
 
 const client = new DynamoDBClient({});
 const ddb = DynamoDBDocumentClient.from(client);
@@ -44,7 +45,7 @@ export async function getMerchantWebhookSecret(merchantId: string): Promise<stri
 /**
  * Get the global webhook secret from environment or SSM
  */
-async function getGlobalWebhookSecret(): Promise<string> {
+export async function getGlobalWebhookSecret(): Promise<string> {
   // First check environment variable
   if (process.env.STRIPE_CONNECT_WEBHOOK_SECRET) {
     console.log('[WEBHOOK] Using global webhook secret from environment');
@@ -77,32 +78,35 @@ async function getGlobalWebhookSecret(): Promise<string> {
  * @param signature The Stripe-Signature header
  * @param accountId Optional Stripe account ID for Connect webhooks
  */
+const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion: '2025-07-30.basil' });
+
 export async function validateWebhookSignature(
   payload: string | Buffer,
   signature: string,
   accountId?: string
-): Promise<boolean> {
-  const Stripe = require('stripe');
-  const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion: '2025-07-30.basil' });
-  
+): Promise<Stripe.Event> {
+  if (!signature) {
+    throw new Error('Missing Stripe-Signature header');
+  }
+
+  // Get the appropriate webhook secret
+  const webhookSecret = accountId
+    ? await getMerchantWebhookSecret(accountId)
+    : await getGlobalWebhookSecret();
+
   try {
-    // Get the appropriate webhook secret
-    const webhookSecret = accountId 
-      ? await getMerchantWebhookSecret(accountId)
-      : await getGlobalWebhookSecret();
-    
-    // Verify the webhook signature
-    const event = stripe.webhooks.constructEvent(
-      payload,
-      signature,
-      webhookSecret
+    // Verify the webhook signature and return the event for downstream processing
+    const event = stripe.webhooks.constructEvent(payload, signature, webhookSecret);
+    console.log(
+      `[WEBHOOK] Signature validated for event ${event.id} (${accountId ?? 'platform'})`
     );
-    
-    console.log(`[WEBHOOK] Signature validated for event ${event.id}`);
-    return true;
+    return event;
   } catch (error) {
-    console.error('[WEBHOOK] Signature validation failed:', error);
-    return false;
+    console.error(
+      `[WEBHOOK] Signature validation failed${accountId ? ` for ${accountId}` : ''}:`,
+      error
+    );
+    throw error;
   }
 }
 
