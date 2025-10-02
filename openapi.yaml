@@ -1,29 +1,1156 @@
 openapi: 3.1.0
-info: { title: Chargeback Evidence Autopilot (Stripe-only), version: 0.2.0 }
-servers: [ { url: https://api.example.com } ]
+info:
+  title: Chargeback Evidence Autopilot (Stripe-only)
+  version: 1.0.0
+  description: |
+    StripedShield's public REST API for automating Stripe chargeback evidence collection,
+    AI-assisted dispute workflows, subscription lifecycle management, and operational health.
+    All endpoints are served from AWS HTTP API Gateway with Lambda backends. Unless otherwise
+    noted, authenticated endpoints expect a Firebase ID token issued by the StripedShield web
+    app as a Bearer token.
+servers:
+  - url: https://ket0g0lurh.execute-api.us-east-1.amazonaws.com
+    description: Production
+  - url: https://{stage}.execute-api.us-east-1.amazonaws.com
+    description: Custom stage
+    variables:
+      stage:
+        default: dev
+        description: Serverless stage name (for example, `dev`, `staging`, `prod`).
+tags:
+  - name: Authentication
+    description: OAuth and session token flows.
+  - name: Disputes & Cases
+    description: Evidence automation, case retrieval, and AI controls.
+  - name: Metrics
+    description: Operational metrics and internal diagnostics.
+  - name: Subscriptions
+    description: Self-serve billing management for StripedShield.
+  - name: Webhooks
+    description: Stripe inbound webhooks processed by the platform.
+  - name: Health
+    description: Service health and debugging endpoints.
 paths:
+  /auth/login:
+    post:
+      tags: [Authentication]
+      summary: Issue a StripedShield demo JWT
+      description: |
+        Authenticates a demo user by email (and password for non-demo accounts) and returns a
+        StripedShield session JWT. The JWT wraps the user's merchant context and is primarily used
+        in demos; production clients should authenticate with Firebase ID tokens instead.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthLoginRequest'
+      responses:
+        '200':
+          description: Login succeeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthLoginResponse'
+        '400':
+          description: Malformed body or missing email
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Unexpected server failure
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /auth/stripe/start:
     get:
-      summary: Build Stripe OAuth URL
-      responses: { '200': { description: OK } }
+      tags: [Authentication]
+      summary: Generate the Stripe Connect onboarding URL
+      description: |
+        Returns an HTTP 302 redirect to Stripe Connect with a signed state payload that contains a
+        CSRF token and the optional Firebase UID. Clients typically follow this redirect in the
+        browser to allow merchants to authorize StripedShield.
+      parameters:
+        - name: uid
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Firebase UID to encode in the OAuth state payload.
+        - name: firebase_uid
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Legacy alias for `uid`.
+      responses:
+        '302':
+          description: Redirect to `https://connect.stripe.com/oauth/authorize`
+          headers:
+            Location:
+              description: Stripe Connect OAuth authorization URL.
+              schema:
+                type: string
+                format: uri
+        '400':
+          description: Stripe Connect is not configured for this deployment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /auth/stripe/callback:
     get:
-      summary: Stripe OAuth redirect handler
-      parameters: [ { name: code, in: query, required: true, schema: { type: string } }, { name: state, in: query, required: true, schema: { type: string } } ]
-      responses: { '200': { description: Connected } }
+      tags: [Authentication]
+      summary: Handle the Stripe Connect OAuth redirect
+      description: |
+        Exchanges the OAuth authorization code for a Stripe access token, persists merchant
+        credentials, registers webhooks, and finally redirects the user back to the StripedShield
+        onboarding experience.
+      parameters:
+        - name: code
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Authorization code returned by Stripe Connect.
+        - name: state
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Base64-encoded state payload emitted by `/auth/stripe/start`.
+      responses:
+        '302':
+          description: Redirect to the StripedShield onboarding UI with success status
+          headers:
+            Location:
+              schema:
+                type: string
+                format: uri
+        '400':
+          description: OAuth exchange failed
+          content:
+            text/plain:
+              schema:
+                type: string
   /webhooks/stripe:
     post:
-      summary: Stripe (Connect) webhook
-      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
-      responses: { '200': { description: OK } }
+      tags: [Webhooks]
+      summary: Receive Stripe Connect and platform webhooks
+      description: |
+        Processes Stripe dispute events, subscription lifecycle notifications, and other Stripe
+        Connect webhooks. Requests must include the `Stripe-Signature` header and use the JSON
+        payload format emitted by Stripe.
+      security:
+        - StripeSignature: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StripeEvent'
+      responses:
+        '200':
+          description: Event processed successfully (or duplicate ignored)
+          content:
+            text/plain:
+              schema:
+                type: string
+        '400':
+          description: Invalid signature or malformed event payload
+          content:
+            text/plain:
+              schema:
+                type: string
   /cases:
     get:
-      summary: List disputes for current merchant
-      parameters: [ { name: status, in: query, schema: { type: string } }, { name: merchant, in: query, required: true, schema: { type: string } } ]
-      responses: { '200': { description: OK } }
+      tags: [Disputes & Cases]
+      summary: List disputes for a merchant account
+      security:
+        - FirebaseIdToken: []
+      parameters:
+        - $ref: '#/components/parameters/MerchantParam'
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/DisputeStatus'
+          description: Filter results by dispute status.
+        - $ref: '#/components/parameters/LimitParam'
+        - $ref: '#/components/parameters/OffsetParam'
+      responses:
+        '200':
+          description: Paginated list of disputes known to StripedShield
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CaseListResponse'
+        '400':
+          description: Validation failed (for example, invalid merchant ID)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication missing or invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /cases/{id}:
-    get: { summary: Get one dispute, parameters: [ { name: id, in: path, required: true, schema: { type: string } }, { name: merchant, in: query, required: true, schema: { type: string } } ], responses: { '200': { description: OK } } }
+    get:
+      tags: [Disputes & Cases]
+      summary: Retrieve dispute details from the StripedShield data store
+      security:
+        - FirebaseIdToken: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/DisputeId'
+        - $ref: '#/components/parameters/MerchantParam'
+      responses:
+        '200':
+          description: Dispute metadata persisted by StripedShield
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CaseDetailResponse'
+        '400':
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid Firebase ID token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Merchant does not belong to the authenticated user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /cases/{id}/collect:
-    post: { summary: Force recollect evidence, parameters: [ { name: id, in: path, required: true, schema: { type: string } }, { name: merchant, in: query, required: true, schema: { type: string } } ], responses: { '202': { description: Started } } }
+    post:
+      tags: [Disputes & Cases]
+      summary: Trigger asynchronous evidence collection
+      security:
+        - FirebaseIdToken: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/DisputeId'
+        - $ref: '#/components/parameters/MerchantParam'
+      responses:
+        '202':
+          description: Evidence collection workflow started
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: started
+        '400':
+          description: Missing merchant or dispute identifier
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication missing or invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Merchant does not belong to the authenticated user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /cases/{id}/submit:
-    post: { summary: Submit now (override), parameters: [ { name: id, in: path, required: true, schema: { type: string } }, { name: merchant, in: query, required: true, schema: { type: string } } ], responses: { '200': { description: Submitted } } }
+    post:
+      tags: [Disputes & Cases]
+      summary: Submit evidence to Stripe
+      description: |
+        Retrieves the dispute from Stripe, optionally evaluates AI win predictions, and submits the
+        evidence package. If the AI engine recommends skipping and `force=true` is not supplied the
+        submission is aborted gracefully.
+      security:
+        - FirebaseIdToken: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/DisputeId'
+        - $ref: '#/components/parameters/MerchantParam'
+        - name: force
+          in: query
+          required: false
+          schema:
+            type: boolean
+          description: Submit immediately even if the AI model recommends waiting.
+      responses:
+        '200':
+          description: Evidence submitted or skipped according to AI guidance
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubmitEvidenceResponse'
+        '400':
+          description: Missing identifiers or evidence deadline passed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication missing or invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Merchant does not belong to the authenticated user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /cases/{id}/retry:
+    post:
+      tags: [Disputes & Cases]
+      summary: Re-run the dispute processing workflow
+      description: |
+        Forces a dispute back through the evidence pipeline. Requires the dispute to be in a
+        retryable status and the evidence deadline to be in the future.
+      security:
+        - FirebaseIdToken: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/DisputeId'
+        - $ref: '#/components/parameters/MerchantParam'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RetryCaseRequest'
+      responses:
+        '200':
+          description: Retry workflow initiated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RetryCaseResponse'
+        '400':
+          description: Dispute cannot be retried in its current state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication missing or invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Merchant does not belong to the authenticated user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Dispute not found in StripedShield records
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /disputes:
+    get:
+      tags: [Disputes & Cases]
+      summary: Fetch live Stripe disputes with StripedShield enhancements
+      description: |
+        Combines real-time Stripe dispute data with StripedShield's DynamoDB metadata, AI scores,
+        and CE3 eligibility to power the operational dashboard.
+      security:
+        - FirebaseIdToken: []
+      parameters:
+        - $ref: '#/components/parameters/MerchantParam'
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/DisputeStatus'
+        - $ref: '#/components/parameters/LimitParam'
+        - $ref: '#/components/parameters/OffsetParam'
+      responses:
+        '200':
+          description: Live dispute feed and summary statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DisputesResponse'
+        '400':
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication missing or invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Merchant does not belong to the authenticated user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /user/disputes:
+    get:
+      tags: [Disputes & Cases]
+      summary: List disputes for the authenticated user's linked merchant account
+      security:
+        - FirebaseIdToken: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/DisputeStatus'
+          description: Filter by dispute status.
+      responses:
+        '200':
+          description: Disputes connected to the authenticated user's Stripe account
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDisputesResponse'
+        '401':
+          description: Authentication missing or invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /metrics/performance:
+    get:
+      tags: [Metrics]
+      summary: Retrieve AI and infrastructure performance metrics
+      responses:
+        '200':
+          description: Current performance metrics (may be degraded if Redis unavailable)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetricsResponse'
+  /stats:
+    get:
+      tags: [Metrics]
+      summary: Retrieve aggregated dispute statistics
+      responses:
+        '200':
+          description: Cached or live dispute statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatsResponse'
+  /debug/redis:
+    get:
+      tags: [Health]
+      summary: Diagnose Redis connectivity
+      responses:
+        '200':
+          description: Redis connection succeeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RedisDebugResponse'
+        '503':
+          description: Redis unavailable or connection failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RedisDebugErrorResponse'
+  /subscription/status:
+    get:
+      tags: [Subscriptions]
+      summary: Retrieve the merchant's StripedShield subscription state
+      security:
+        - FirebaseIdToken: []
+      parameters:
+        - $ref: '#/components/parameters/MerchantParam'
+      responses:
+        '200':
+          description: Subscription snapshot including premium feature entitlements
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionStatusResponse'
+        '400':
+          description: Merchant not specified
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication missing or invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Merchant does not belong to the authenticated user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /subscription/cancel:
+    post:
+      tags: [Subscriptions]
+      summary: Schedule subscription cancellation at period end
+      security:
+        - FirebaseIdToken: []
+      parameters:
+        - $ref: '#/components/parameters/MerchantParam'
+      responses:
+        '200':
+          description: Cancellation scheduled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CancelSubscriptionResponse'
+        '400':
+          description: No active subscription for the merchant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication missing or invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Merchant does not belong to the authenticated user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /subscription/checkout:
+    post:
+      tags: [Subscriptions]
+      summary: Create a Stripe Checkout session for StripedShield
+      description: |
+        Creates or reuses a Stripe customer and issues a hosted checkout session for the configured
+        StripedShield subscription plan. Authentication is optional; when available it enriches the
+        subscription metadata.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CheckoutSessionRequest'
+      responses:
+        '200':
+          description: Checkout session created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckoutSessionResponse'
+        '400':
+          description: Missing required fields (for example, email)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication supplied but invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /health:
+    get:
+      tags: [Health]
+      summary: Check overall platform health
+      responses:
+        '200':
+          description: Component health summary (with degraded flag when dependencies fail)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthCheckResponse'
+components:
+  securitySchemes:
+    FirebaseIdToken:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Firebase ID token obtained from the StripedShield frontend.
+    StripeSignature:
+      type: apiKey
+      in: header
+      name: Stripe-Signature
+      description: Raw signature header computed by Stripe for webhook verification.
+  parameters:
+    MerchantParam:
+      name: merchant
+      in: query
+      required: false
+      description: |
+        Stripe account ID (`acct_...`). When omitted, the platform falls back to the merchant linked
+        to the authenticated Firebase user.
+      schema:
+        $ref: '#/components/schemas/MerchantId'
+    LimitParam:
+      name: limit
+      in: query
+      required: false
+      description: Maximum number of records to return (server may cap at 100).
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+    OffsetParam:
+      name: offset
+      in: query
+      required: false
+      description: Zero-based offset used for pagination.
+      schema:
+        type: integer
+        minimum: 0
+  schemas:
+    AuthLoginRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+          description: Required for non-demo accounts.
+    AuthLoginResponse:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+        token:
+          type: string
+          description: JWT issued by StripedShield for demo access.
+        user:
+          type: object
+          properties:
+            email:
+              type: string
+              format: email
+            merchantId:
+              type: string
+            role:
+              type: string
+            name:
+              type: string
+        expiresIn:
+          type: string
+          description: Token validity window (for example `7d`).
+        error:
+          type: string
+    MerchantId:
+      type: string
+      pattern: '^acct_[A-Za-z0-9]{16,}$'
+      description: Stripe connected account identifier.
+    DisputeId:
+      type: string
+      pattern: '^(dp_|du_)[A-Za-z0-9]{24,}$'
+      description: Stripe dispute identifier.
+    DisputeStatus:
+      type: string
+      enum:
+        - needs_response
+        - warning_needs_response
+        - warning_under_review
+        - under_review
+        - won
+        - lost
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: May be present on legacy endpoints that wrap errors.
+        error:
+          type: string
+        details:
+          description: Additional context for troubleshooting.
+          oneOf:
+            - type: string
+            - type: object
+            - type: array
+      additionalProperties: false
+    CaseSummary:
+      type: object
+      properties:
+        dispute_id:
+          $ref: '#/components/schemas/DisputeId'
+        amount_cents:
+          type: integer
+        currency:
+          type: string
+        reason:
+          type: string
+        status:
+          $ref: '#/components/schemas/DisputeStatus'
+        due_by_epoch:
+          type: integer
+          nullable: true
+        created_at_epoch:
+          type: integer
+          nullable: true
+      additionalProperties: false
+    CaseListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CaseSummary'
+      required: [items]
+    CaseDetail:
+      allOf:
+        - $ref: '#/components/schemas/CaseSummary'
+        - type: object
+          properties:
+            charge_id:
+              type: string
+            payment_intent_id:
+              type: string
+              nullable: true
+            ce3_eligible:
+              type: boolean
+              nullable: true
+            win_probability:
+              type: number
+              format: float
+              nullable: true
+            merchant_id:
+              $ref: '#/components/schemas/MerchantId'
+            updated_at_epoch:
+              type: integer
+              nullable: true
+            result_at_epoch:
+              type: integer
+              nullable: true
+            evidence_submitted:
+              type: boolean
+              nullable: true
+          additionalProperties: true
+    CaseDetailResponse:
+      type: object
+      properties:
+        item:
+          $ref: '#/components/schemas/CaseDetail'
+      required: [item]
+    SubmitEvidenceResponse:
+      type: object
+      properties:
+        submitted:
+          type: boolean
+        skippedByAI:
+          type: boolean
+        message:
+          type: string
+        winPrediction:
+          type: object
+          description: Present when AI scoring runs.
+        dispute:
+          type: object
+          description: Stripe dispute payload when submission occurs.
+      additionalProperties: true
+    RetryCaseRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          description: Free-form explanation logged in audit trails.
+      additionalProperties: false
+    RetryCaseResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        dispute_id:
+          $ref: '#/components/schemas/DisputeId'
+        execution_name:
+          type: string
+          description: Step Functions execution identifier.
+        status:
+          $ref: '#/components/schemas/DisputeStatus'
+        deadline:
+          type: string
+          format: date-time
+          nullable: true
+      required: [message]
+    DisputeRecord:
+      type: object
+      properties:
+        id:
+          $ref: '#/components/schemas/DisputeId'
+        amount:
+          type: integer
+        currency:
+          type: string
+        reason:
+          type: string
+        status:
+          $ref: '#/components/schemas/DisputeStatus'
+        evidence_due_by:
+          type: integer
+          nullable: true
+        charge:
+          type: string
+        payment_intent:
+          type: string
+          nullable: true
+        merchant_name:
+          type: string
+        customer_email:
+          type: string
+          nullable: true
+        ce3_eligible:
+          type: boolean
+        win_probability:
+          type: number
+          format: float
+        ai_recommendation:
+          type: string
+          nullable: true
+        evidence_submitted:
+          type: boolean
+        last_updated:
+          type: integer
+      additionalProperties: true
+    DisputesResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        authenticated:
+          type: boolean
+        merchant_id:
+          $ref: '#/components/schemas/MerchantId'
+        data:
+          type: object
+          properties:
+            disputes:
+              type: array
+              items:
+                $ref: '#/components/schemas/DisputeRecord'
+            summary:
+              type: object
+              properties:
+                total:
+                  type: integer
+                pending:
+                  type: integer
+                under_review:
+                  type: integer
+                won:
+                  type: integer
+                lost:
+                  type: integer
+                ce3_eligible:
+                  type: integer
+                total_amount:
+                  type: integer
+                average_win_probability:
+                  type: number
+        processingTime:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+      required: [success, authenticated, data]
+    UserDisputeSummary:
+      type: object
+      properties:
+        dispute_id:
+          $ref: '#/components/schemas/DisputeId'
+        amount_cents:
+          type: integer
+        currency:
+          type: string
+        reason:
+          type: string
+        status:
+          $ref: '#/components/schemas/DisputeStatus'
+        ce3_eligible:
+          type: boolean
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          nullable: true
+        due_by:
+          type: string
+          format: date-time
+          nullable: true
+        evidence_submitted:
+          type: boolean
+          nullable: true
+        win_likelihood:
+          type: string
+          nullable: true
+      additionalProperties: false
+    UserDisputesResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserDisputeSummary'
+        stats:
+          type: object
+          properties:
+            total:
+              type: integer
+            pending:
+              type: integer
+            won:
+              type: integer
+            lost:
+              type: integer
+            win_rate:
+              type: number
+        merchant_id:
+          $ref: '#/components/schemas/MerchantId'
+        message:
+          type: string
+      required: [items]
+    MetricsResponse:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        service:
+          type: string
+        version:
+          type: string
+        winRate:
+          type: object
+          properties:
+            current:
+              type: number
+            target:
+              type: number
+            datasetSize:
+              type: integer
+            definition:
+              type: string
+            timeframe:
+              type: string
+        performance:
+          type: object
+          properties:
+            cacheHitRate:
+              type: number
+            redisOpsPerSec:
+              type: integer
+            totalCommandsProcessed:
+              type: integer
+            avgLatencyMs:
+              type: integer
+            p50LatencyMs:
+              type: integer
+            p95LatencyMs:
+              type: integer
+            p99LatencyMs:
+              type: integer
+        business:
+          type: object
+        health:
+          type: object
+        degraded:
+          type: boolean
+        responseTimeMs:
+          type: integer
+      additionalProperties: true
+    StatsResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            winRate:
+              type: number
+            totalDisputes:
+              type: integer
+            disputesWon:
+              type: integer
+            disputesLost:
+              type: integer
+            disputesPending:
+              type: integer
+            averageResponseTime:
+              type: string
+            ce30DetectionRate:
+              type: number
+            totalAmountRecovered:
+              type: integer
+            averageDisputeAmount:
+              type: integer
+            lastUpdated:
+              type: string
+              format: date-time
+            dataSource:
+              type: string
+        processingTime:
+          type: string
+        note:
+          type: string
+      additionalProperties: false
+    RedisDebugResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [connected]
+        pong:
+          type: string
+        latencyMs:
+          type: integer
+        redisUrl:
+          type: string
+        redisVersion:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+    RedisDebugErrorResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [error]
+        error:
+          type: string
+        redisUrl:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+    SubscriptionStatusResponse:
+      type: object
+      properties:
+        subscription:
+          type: object
+          properties:
+            id:
+              type: string
+            status:
+              type: string
+            current_period_end:
+              type: integer
+              nullable: true
+            cancel_at_period_end:
+              type: boolean
+            plan_id:
+              type: string
+              nullable: true
+            premium_features_active:
+              type: boolean
+            features:
+              type: object
+            limits:
+              type: object
+            stripe_subscription:
+              type: object
+              nullable: true
+      additionalProperties: true
+    CancelSubscriptionResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        subscription:
+          type: object
+          properties:
+            id:
+              type: string
+            status:
+              type: string
+            cancel_at_period_end:
+              type: boolean
+            current_period_end:
+              type: integer
+              nullable: true
+      required: [message]
+    CheckoutSessionRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+        price_id:
+          type: string
+          description: Optional Stripe price ID overriding the default founder plan.
+    CheckoutSessionResponse:
+      type: object
+      properties:
+        checkout_url:
+          type: string
+          format: uri
+        session_id:
+          type: string
+    HealthCheckResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        degraded:
+          type: boolean
+        checks:
+          type: object
+          properties:
+            redis:
+              type: object
+            dynamo:
+              type: object
+        service:
+          type: string
+        version:
+          type: string
+        ts:
+          type: string
+          format: date-time
+      required: [ok, degraded, checks, service, version, ts]
+    StripeEvent:
+      type: object
+      description: Generic Stripe event payload. The schema varies per event type.
+      additionalProperties: true
