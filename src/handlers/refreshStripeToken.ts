@@ -2,17 +2,22 @@ import Stripe from 'stripe';
 import { ok, bad } from "../shared/responses.js";
 import { requireAuth } from "../shared/auth.js";
 import { getMerchantByAccount, putMerchant } from "../shared/db.js";
+import { setCorrelationContext, withRequestLogging } from "../shared/logger.js";
 
 /**
  * Refresh Stripe OAuth access token using refresh token
  */
-export async function handler(event: any) {
+export const handler = withRequestLogging(async (event: any) => {
   // REQUIRE AUTHENTICATION
   const authResult = await requireAuth(event);
   if ('statusCode' in authResult) {
     return authResult;
   }
   const authContext = authResult;
+
+  if (authContext.merchant_id || authContext.stripe_account_id) {
+    setCorrelationContext({ merchantId: authContext.stripe_account_id || authContext.merchant_id });
+  }
   
   if (!authContext.merchant_id) {
     return bad('No Stripe account connected');
@@ -63,4 +68,4 @@ export async function handler(event: any) {
     console.error('Token refresh error:', error);
     return bad('Failed to refresh token: ' + error.message);
   }
-}
+});

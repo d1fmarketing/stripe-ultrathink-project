@@ -3,6 +3,7 @@ import { requireAuth, verifyMerchantOwnership } from "../shared/auth.js";
 import { createAuditLog, AuditAction } from "../shared/auditLog.js";
 import { putMerchant, getCase } from "../shared/db.js";
 import Stripe from 'stripe';
+import { setCorrelationContext, withRequestLogging } from "../shared/logger.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion: '2025-07-30.basil' });
 
@@ -11,11 +12,13 @@ export async function handleSubscriptionEvent(event: any, subscriptionEvent: any
   const { type, data } = subscriptionEvent;
   const subscription = data.object;
   const merchantId = event.account || subscription.metadata?.merchant_id;
-  
+
   if (!merchantId) {
     console.error('No merchant ID found for subscription event');
     return;
   }
+
+  setCorrelationContext({ merchantId: String(merchantId), eventId: subscription.id });
   
   // Get merchant data from cases table
   const merchant = await getCase(merchantId, 'MERCHANT');
@@ -213,7 +216,7 @@ async function deactivatePremiumFeatures(merchantId: string) {
 }
 
 // API endpoint to get subscription status
-export async function getSubscriptionStatus(event: any) {
+export const getSubscriptionStatus = withRequestLogging(async (event: any) => {
   // Require authentication
   const authResult = await requireAuth(event);
   if ('statusCode' in authResult) {
@@ -226,6 +229,8 @@ export async function getSubscriptionStatus(event: any) {
   if (!merchantId) {
     return bad("No merchant account specified");
   }
+
+  setCorrelationContext({ merchantId });
   
   // Verify ownership
   const hasAccess = await verifyMerchantOwnership(authContext, merchantId);
@@ -286,10 +291,10 @@ export async function getSubscriptionStatus(event: any) {
     console.error('Error getting subscription status:', error);
     return bad(`Failed to get subscription status: ${error.message}`);
   }
-}
+});
 
 // API endpoint to cancel subscription
-export async function cancelSubscription(event: any) {
+export const cancelSubscription = withRequestLogging(async (event: any) => {
   // Require authentication
   const authResult = await requireAuth(event);
   if ('statusCode' in authResult) {
@@ -302,6 +307,8 @@ export async function cancelSubscription(event: any) {
   if (!merchantId) {
     return bad("No merchant account specified");
   }
+
+  setCorrelationContext({ merchantId });
   
   // Verify ownership
   const hasAccess = await verifyMerchantOwnership(authContext, merchantId);
@@ -362,4 +369,4 @@ export async function cancelSubscription(event: any) {
     console.error('Error canceling subscription:', error);
     return bad(`Failed to cancel subscription: ${error.message}`);
   }
-}
+});

@@ -1,9 +1,14 @@
 import Stripe from 'stripe';
+import { setCorrelationContext, withRequestLogging } from "../shared/logger.js";
 const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion:'2025-07-30.basil' });
 
-export async function handler(evt:any){
+export const handler = withRequestLogging(async (evt:any) => {
   // Safely extract stripe_account_id with proper error handling
   const { dispute, merchant } = evt;
+
+  if (merchant?.stripe_account_id || merchant?.merchant_id) {
+    setCorrelationContext({ merchantId: merchant.stripe_account_id || merchant.merchant_id });
+  }
   
   if (!dispute || !dispute.charge) {
     console.error('Missing dispute or charge in event:', evt);
@@ -30,4 +35,4 @@ export async function handler(evt:any){
       body: JSON.stringify({ error: 'Failed to retrieve charge', details: error.message }) 
     };
   }
-}
+});

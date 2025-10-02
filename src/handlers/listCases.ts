@@ -4,6 +4,7 @@ import { requireAuth, verifyMerchantOwnership } from "../shared/auth.js";
 import { rateLimitMiddleware } from "../shared/rateLimit.js";
 import { validationMiddleware, commonSchemas } from "../shared/validation.js";
 import Redis from "ioredis";
+import { setCorrelationContext, withRequestLogging } from "../shared/logger.js";
 
 // Initialize Redis with lazy connection
 let redis: Redis | null = null;
@@ -20,7 +21,7 @@ function getRedis() {
   return redis;
 }
 
-export async function handler(event:any){
+export const handler = withRequestLogging(async (event:any) => {
   // Check rate limit first
   const rateLimitResult = await rateLimitMiddleware(event);
   if (rateLimitResult) {
@@ -55,6 +56,8 @@ export async function handler(event:any){
   }
   
   if(!merchantId) return bad("missing merchant param or no connected Stripe account");
+
+  setCorrelationContext({ merchantId });
   
   // VERIFY USER OWNS THIS MERCHANT ACCOUNT
   const hasAccess = await verifyMerchantOwnership(authContext, merchantId);
@@ -109,4 +112,4 @@ export async function handler(event:any){
   }
   
   return ok(response);
-}
+});

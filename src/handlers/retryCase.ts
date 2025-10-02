@@ -3,11 +3,12 @@ import { getCase } from "../shared/db.js";
 import { requireAuth, verifyMerchantOwnership } from "../shared/auth.js";
 import { StartExecutionCommand, SFNClient } from "@aws-sdk/client-sfn";
 import Stripe from 'stripe';
+import { setCorrelationContext, withRequestLogging } from "../shared/logger.js";
 
 const sfn = new SFNClient({});
 const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion: '2025-07-30.basil' });
 
-export async function handler(event: any) {
+export const handler = withRequestLogging(async (event: any) => {
   // REQUIRE AUTHENTICATION
   const authResult = await requireAuth(event);
   if ('statusCode' in authResult) {
@@ -25,6 +26,8 @@ export async function handler(event: any) {
   if (!merchantId) {
     return bad("No merchant account connected");
   }
+
+  setCorrelationContext({ merchantId });
   
   // VERIFY USER OWNS THIS MERCHANT ACCOUNT
   const hasAccess = await verifyMerchantOwnership(authContext, merchantId);
@@ -122,7 +125,7 @@ export async function handler(event: any) {
           pathParameters: { id: disputeId },
           queryStringParameters: { merchant: merchantId }
         };
-        const disputeResponse = await getDisputeHandler(disputeEvent);
+        const disputeResponse = await getDisputeHandler(disputeEvent, undefined);
         const freshDispute = JSON.parse(disputeResponse.body);
         
         // Step 2: Get charge data
@@ -132,7 +135,7 @@ export async function handler(event: any) {
             pathParameters: { id: freshDispute.charge },
             queryStringParameters: { merchant: merchantId }
           };
-          const chargeResponse = await getChargeHandler(chargeEvent);
+          const chargeResponse = await getChargeHandler(chargeEvent, undefined);
           charge = JSON.parse(chargeResponse.body);
         }
         
@@ -144,7 +147,7 @@ export async function handler(event: any) {
               pathParameters: { id: freshDispute.payment_intent },
               queryStringParameters: { merchant: merchantId }
             };
-            const paymentIntentResponse = await getPaymentIntentHandler(paymentIntentEvent);
+            const paymentIntentResponse = await getPaymentIntentHandler(paymentIntentEvent, undefined);
             paymentIntent = JSON.parse(paymentIntentResponse.body);
           } catch (piError) {
             console.log('Payment intent not found, continuing without it');
@@ -162,7 +165,7 @@ export async function handler(event: any) {
             settings: { autoSubmit: true } // Force submit on retry
           }
         };
-        const evidenceResult = await buildEvidenceHandler(buildEvidenceEvent);
+        const evidenceResult = await buildEvidenceHandler(buildEvidenceEvent, undefined);
         
         // Step 5: Stage evidence
         const stageEvent = {
@@ -173,7 +176,7 @@ export async function handler(event: any) {
             access_token: caseData.merchant_access_token
           }
         };
-        const stageResult = await stageEvidenceHandler(stageEvent);
+        const stageResult = await stageEvidenceHandler(stageEvent, undefined);
         
         // Step 6: Submit evidence if staging succeeded
         if (stageResult.staged) {
@@ -184,7 +187,7 @@ export async function handler(event: any) {
               access_token: caseData.merchant_access_token
             }
           };
-          const submitResult = await submitEvidenceHandler(submitEvent);
+          const submitResult = await submitEvidenceHandler(submitEvent, undefined);
           
           console.log('Direct retry completed successfully:', submitResult);
           
@@ -223,4 +226,4 @@ export async function handler(event: any) {
       details: error.message
     });
   }
-}
+});

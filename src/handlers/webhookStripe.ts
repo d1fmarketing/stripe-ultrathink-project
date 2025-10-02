@@ -5,6 +5,7 @@ import { getMerchantWinRate } from "../shared/db-helpers.js";
 import { handleSubscriptionEvent } from "./subscriptionManager.js";
 import { WebhookIdempotencyService } from "../shared/webhookIdempotency.js";
 import { getMerchantWebhookSecret, validateWebhookSignature } from "../shared/webhookSecrets.js";
+import { setCorrelationContext, withRequestLogging } from "../shared/logger.js";
 import { 
   analyzeDispute, 
   quickAssessRisk,
@@ -108,7 +109,7 @@ async function markEventProcessed(eventId: string, eventType: string): Promise<v
   }
 }
 
-export async function handler(event:any){
+export const handler = withRequestLogging(async (event:any) => {
   const sig = event.headers['stripe-signature'] || event.headers['Stripe-Signature'];
   const rawBody = event.body;
   const account = (event.headers['stripe-account'] || event.headers['Stripe-Account']) as string | undefined;
@@ -126,6 +127,7 @@ export async function handler(event:any){
   let evt: Stripe.Event;
   try{
     evt = stripe.webhooks.constructEvent(rawBody, sig!, webhookSecret);
+    setCorrelationContext({ eventId: evt.id, merchantId: account || (evt as any).account });
   }catch(e:any){
     console.error(`Webhook signature verification failed for account ${account}:`, e.message);
     return { statusCode:400, body:`bad sig: ${e.message}` };
@@ -504,4 +506,4 @@ export async function handler(event:any){
 
   await markEventProcessed(evt.id, evt.type);
   return { statusCode:200, body:'ok' };
-}
+});

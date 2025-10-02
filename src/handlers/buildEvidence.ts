@@ -8,6 +8,7 @@ import {
 import { CloudWatch, StandardUnit } from '@aws-sdk/client-cloudwatch';
 import { ddb } from "../shared/ddb";
 import { PutCommand } from "@aws-sdk/lib-dynamodb";
+import { setCorrelationContext, withRequestLogging } from "../shared/logger.js";
 
 // ML Enhancement Imports (Safe - with fallbacks)
 let patternCache: any = null;
@@ -61,8 +62,14 @@ async function publishMetric(name: string, value: number, unit: string = 'Count'
   }
 }
 
-export async function handler(evt:any){
+export const handler = withRequestLogging(async (evt:any) => {
   const { dispute, charge, payment_intent, merchant } = evt;
+
+  if (merchant?.stripe_account_id || merchant?.merchant_id) {
+    setCorrelationContext({
+      merchantId: merchant.stripe_account_id || merchant.merchant_id
+    });
+  }
   
   // Use merchant's OAuth token for connected accounts, fallback to global secret
   const stripeKey = merchant?.access_token || process.env.STRIPE_SECRET || '';
@@ -136,8 +143,8 @@ export async function handler(evt:any){
   
   try {
     // Use the advanced evidence bundler for CE3.0 and reason-specific evidence
-    const evidencePackage = await bundler.assembleEvidencePackage(
-      dispute, 
+    const evidencePackage: any = await bundler.assembleEvidencePackage(
+      dispute,
       merchant?.id || 'default',
       merchant?.stripeAccountId
     );
@@ -365,4 +372,4 @@ export async function handler(evt:any){
 
     return { ...evt, evidence };
   }
-}
+});

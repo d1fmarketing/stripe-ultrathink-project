@@ -1,7 +1,12 @@
 import Stripe from 'stripe';
+import { setCorrelationContext, withRequestLogging } from "../shared/logger.js";
 
-export async function handler(evt:any){
+export const handler = withRequestLogging(async (evt:any) => {
   const { dispute, evidence, merchant } = evt;
+
+  if (merchant?.stripe_account_id || merchant?.merchant_id) {
+    setCorrelationContext({ merchantId: merchant.stripe_account_id || merchant.merchant_id });
+  }
   
   // Use merchant's OAuth token for connected accounts, fallback to global secret with stripeAccount header
   let stripe: Stripe;
@@ -21,4 +26,4 @@ export async function handler(evt:any){
   
   const res = await stripe.disputes.update(dispute.id, { evidence, submit: false }, stripeOptions);
   return { ...evt, staged: true, dispute: res };
-}
+});

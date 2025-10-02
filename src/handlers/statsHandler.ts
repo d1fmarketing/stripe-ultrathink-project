@@ -1,6 +1,7 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { DynamoDBClient, ScanCommand, QueryCommand } from '@aws-sdk/client-dynamodb';
 import Redis from 'ioredis';
+import { setCorrelationContext, withRequestLogging } from '../shared/logger.js';
 
 const dynamodb = new DynamoDBClient({ region: 'us-east-1' });
 const CASES_TABLE = process.env.CASES_TABLE || 'chargeback-autopilot-stripe-prod-CasesTable-1LPIUKCN82FYI';
@@ -20,8 +21,10 @@ interface StatsResponse {
   dataSource: 'cache' | 'database';
 }
 
-export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+export const handler = withRequestLogging(async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   const startTime = Date.now();
+
+  setCorrelationContext({ merchantId: 'system' });
   
   // CORS headers
   const headers = {
@@ -193,4 +196,4 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       })
     };
   }
-};
+});

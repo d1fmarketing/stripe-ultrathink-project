@@ -1,6 +1,7 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, ScanCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
 import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses";
+import { setCorrelationContext, withRequestLogging } from "../shared/logger.js";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const ses = new SESClient({});
@@ -12,12 +13,14 @@ const SES_DEFAULT_TO = process.env.SES_DEFAULT_TO || '';
 
 const OPEN = new Set(['needs_response','warning_needs_response','under_review','warning_under_review']);
 
-export async function handler(){
+export const handler = withRequestLogging(async () => {
+  setCorrelationContext({ merchantId: 'system' });
   const merchants = await ddb.send(new ScanCommand({ TableName: MERCHANTS }));
   const ms = (merchants.Items||[]).map(i => (i.stripe_account_id || i.merchant_id)).filter(Boolean);
   const since = Math.floor((Date.now() - 7*24*3600*1000)/1000);
 
-  for(const m of ms){
+  for (const m of ms) {
+    setCorrelationContext({ merchantId: String(m) });
     const pk = `MERCHANT#${m}`;
     const r = await ddb.send(new QueryCommand({ TableName: CASES, KeyConditionExpression: "pk = :pk", ExpressionAttributeValues: { ":pk": pk } }));
     const items = r.Items||[];
@@ -63,4 +66,4 @@ export async function handler(){
   }
 
   return { ok:true };
-}
+});
