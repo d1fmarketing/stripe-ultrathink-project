@@ -1,12 +1,13 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { getRedisClient } from '../cache/redisConnection';
 import { DynamoDBClient, ScanCommand } from '@aws-sdk/client-dynamodb';
+import { withRequestResponseValidation } from "../shared/httpValidation.js";
 
 /**
  * Metrics endpoint for StripedShield
  * Returns performance metrics and win rate statistics
  */
-export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+export const handler = withRequestResponseValidation(async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   const startTime = Date.now();
   
   try {
@@ -156,7 +157,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     
   } catch (error: any) {
     console.error('Metrics error:', error);
-    
+
     // Return partial metrics with 200 status
     return {
       statusCode: 200,
@@ -178,4 +179,4 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       })
     };
   }
-};
+});

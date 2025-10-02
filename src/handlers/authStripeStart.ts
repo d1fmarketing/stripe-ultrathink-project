@@ -1,14 +1,22 @@
 import crypto from 'crypto';
-import { ok, bad } from "../shared/responses.js";
+import { z } from 'zod';
+import { bad } from "../shared/responses.js";
+import { withRequestResponseValidation } from "../shared/httpValidation.js";
 
 const STRIPE_CLIENT_ID = process.env.STRIPE_CLIENT_ID!;
 const STRIPE_REDIRECT_URI = process.env.STRIPE_REDIRECT_URI!;
 
-export async function handler(event: any){
+const querySchema = z.object({
+  uid: z.string().trim().min(1).optional(),
+  firebase_uid: z.string().trim().min(1).optional()
+});
+
+export const handler = withRequestResponseValidation(
+async (event: any) => {
   if(!STRIPE_CLIENT_ID || !STRIPE_REDIRECT_URI) return bad("Stripe not configured");
-  
+
   // Get Firebase UID from query parameters to link accounts
-  const qs = event.queryStringParameters || {};
+  const qs = event.validatedQuery || event.queryStringParameters || {};
   const firebase_uid = qs.uid || qs.firebase_uid || null;
   
   // Create state with Firebase UID and CSRF token
@@ -38,4 +46,4 @@ export async function handler(event: any){
     },
     body: ''
   };
-}
+}, { querySchema });

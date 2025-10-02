@@ -1,12 +1,13 @@
 import { ok, bad } from "../shared/responses.js";
 import { listCases } from "../shared/db.js";
 import { requireAuth } from "../shared/auth.js";
+import { withRequestResponseValidation } from "../shared/httpValidation.js";
 
 /**
  * Get disputes for the authenticated user only
  * No merchant parameter needed - uses user's own merchant account
  */
-export async function handler(event: any) {
+export const handler = withRequestResponseValidation(async (event: any) => {
   // REQUIRE AUTHENTICATION
   const authResult = await requireAuth(event);
   if ('statusCode' in authResult) {
@@ -64,4 +65,4 @@ export async function handler(event: any) {
     console.error('Error fetching user disputes:', error);
     return bad('Failed to fetch disputes: ' + error.message);
   }
-}
+});

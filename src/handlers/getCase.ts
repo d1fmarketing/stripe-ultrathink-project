@@ -2,8 +2,9 @@ import { ok, bad } from "../shared/responses.js";
 import { getCase } from "../shared/db.js";
 import { requireAuth, verifyMerchantOwnership } from "../shared/auth.js";
 import { validationMiddleware, commonSchemas } from "../shared/validation.js";
+import { withRequestResponseValidation } from "../shared/httpValidation.js";
 
-export async function handler(event:any){
+export const handler = withRequestResponseValidation(async (event:any) => {
   // Validate input first
   const validationSchema = {
     ...commonSchemas.disputeId,
@@ -44,4 +45,4 @@ export async function handler(event:any){
   
   const item = await getCase(merchantId, id);
   return ok({ item });
-}
+});

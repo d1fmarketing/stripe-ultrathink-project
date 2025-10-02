@@ -5,6 +5,7 @@ import { getMerchantWinRate } from "../shared/db-helpers.js";
 import { handleSubscriptionEvent } from "./subscriptionManager.js";
 import { WebhookIdempotencyService } from "../shared/webhookIdempotency.js";
 import { getMerchantWebhookSecret, validateWebhookSignature } from "../shared/webhookSecrets.js";
+import { withRequestResponseValidation } from "../shared/httpValidation.js";
 import { 
   analyzeDispute, 
   quickAssessRisk,
@@ -108,7 +109,7 @@ async function markEventProcessed(eventId: string, eventType: string): Promise<v
   }
 }
 
-export async function handler(event:any){
+export const handler = withRequestResponseValidation(async (event:any) => {
   const sig = event.headers['stripe-signature'] || event.headers['Stripe-Signature'];
   const rawBody = event.body;
   const account = (event.headers['stripe-account'] || event.headers['Stripe-Account']) as string | undefined;
@@ -504,4 +505,4 @@ export async function handler(event:any){
 
   await markEventProcessed(evt.id, evt.type);
   return { statusCode:200, body:'ok' };
-}
+});

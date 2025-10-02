@@ -3,6 +3,7 @@ import { listCases } from "../shared/db.js";
 import { requireAuth, verifyMerchantOwnership } from "../shared/auth.js";
 import { rateLimitMiddleware } from "../shared/rateLimit.js";
 import { validationMiddleware, commonSchemas } from "../shared/validation.js";
+import { withRequestResponseValidation } from "../shared/httpValidation.js";
 import Redis from "ioredis";
 
 // Initialize Redis with lazy connection
@@ -20,7 +21,7 @@ function getRedis() {
   return redis;
 }
 
-export async function handler(event:any){
+export const handler = withRequestResponseValidation(async (event:any) => {
   // Check rate limit first
   const rateLimitResult = await rateLimitMiddleware(event);
   if (rateLimitResult) {
@@ -109,4 +110,4 @@ export async function handler(event:any){
   }
   
   return ok(response);
-}
+});
