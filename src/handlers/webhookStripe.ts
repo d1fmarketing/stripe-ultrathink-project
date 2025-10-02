@@ -4,7 +4,7 @@ import { upsertCase } from "../shared/db.js";
 import { getMerchantWinRate } from "../shared/db-helpers.js";
 import { handleSubscriptionEvent } from "./subscriptionManager.js";
 import { WebhookIdempotencyService } from "../shared/webhookIdempotency.js";
-import { getMerchantWebhookSecret, validateWebhookSignature } from "../shared/webhookSecrets.js";
+import { validateWebhookSignature } from "../shared/webhookSecrets.js";
 import { 
   analyzeDispute, 
   quickAssessRisk,
@@ -112,20 +112,14 @@ export async function handler(event:any){
   const sig = event.headers['stripe-signature'] || event.headers['Stripe-Signature'];
   const rawBody = event.body;
   const account = (event.headers['stripe-account'] || event.headers['Stripe-Account']) as string | undefined;
-  
-  // Get the webhook secret from environment variable
-  // For production, use different secrets for account vs platform webhooks
-  const webhookSecret = account 
-    ? process.env.STRIPE_CONNECT_WEBHOOK_SECRET || process.env.STRIPE_WEBHOOK_SECRET || 'whsec_test'
-    : process.env.STRIPE_WEBHOOK_SECRET || 'whsec_test';
-  
-  if (!webhookSecret || webhookSecret === 'whsec_test') {
-    console.warn('Using test webhook secret - configure STRIPE_WEBHOOK_SECRET for production');
-  }
-  
+
   let evt: Stripe.Event;
   try{
-    evt = stripe.webhooks.constructEvent(rawBody, sig!, webhookSecret);
+    if (!sig) {
+      throw new Error('Missing Stripe-Signature header');
+    }
+
+    evt = await validateWebhookSignature(rawBody, sig, account, { stripeClient: stripe });
   }catch(e:any){
     console.error(`Webhook signature verification failed for account ${account}:`, e.message);
     return { statusCode:400, body:`bad sig: ${e.message}` };
