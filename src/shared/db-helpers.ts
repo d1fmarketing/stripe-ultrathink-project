@@ -5,10 +5,12 @@
 
 import { ddb } from "./ddb.js";
 import { QueryCommand, ScanCommand } from "@aws-sdk/lib-dynamodb";
+import { getLogger, errorToMetadata } from "./logger.js";
 
 const CASES = process.env.CASES_TABLE!;
 const MERCHANTS = process.env.MERCHANTS_TABLE!;
 const SUBMISSIONS = process.env.SUBMISSIONS_TABLE!;
+const logger = getLogger('shared.dbHelpers');
 
 /**
  * Calculate REAL merchant win rate from historical cases
@@ -42,10 +44,16 @@ export async function getMerchantWinRate(merchantId: string, daysPeriod = 180): 
     const wins = items.filter(item => item.dispute_status === "won").length;
     const winRate = wins / items.length;
     
-    console.log(`[DB] Merchant ${merchantId} win rate: ${(winRate * 100).toFixed(1)}% (${wins}/${items.length} cases)`);
+    logger.info('Merchant win rate calculated', {
+      merchantId,
+      winRate,
+      wins,
+      totalCases: items.length,
+      daysPeriod
+    });
     return winRate;
   } catch (error) {
-    console.error('[DB] Error calculating merchant win rate:', error);
+    logger.error('Error calculating merchant win rate', errorToMetadata(error, { merchantId, daysPeriod }));
     return 0.5; // Default to neutral on error
   }
 }
@@ -69,10 +77,10 @@ export async function getCustomerTransactionCount(merchantId: string, customerId
     }));
     
     const count = response.Items?.length || 0;
-    console.log(`[DB] Customer ${customerId} has ${count} prior transactions`);
+    logger.info('Customer prior transactions retrieved', { merchantId, customerId, count });
     return count;
   } catch (error) {
-    console.error('[DB] Error getting customer transaction count:', error);
+    logger.error('Error getting customer transaction count', errorToMetadata(error, { merchantId, customerId }));
     return 0;
   }
 }
@@ -105,10 +113,10 @@ export async function getCustomerTenureDays(merchantId: string, customerId: stri
     const earliestTimestamp = Math.min(...items.map(item => item.created_at_epoch || Date.now() / 1000));
     const tenureDays = Math.floor((Date.now() / 1000 - earliestTimestamp) / (24 * 60 * 60));
     
-    console.log(`[DB] Customer ${customerId} tenure: ${tenureDays} days`);
+    logger.info('Customer tenure calculated', { merchantId, customerId, tenureDays });
     return tenureDays;
   } catch (error) {
-    console.error('[DB] Error calculating customer tenure:', error);
+    logger.error('Error calculating customer tenure', errorToMetadata(error, { merchantId, customerId }));
     return 0;
   }
 }
@@ -133,10 +141,10 @@ export async function getCustomerOrderCount(merchantId: string, customerId: stri
     }));
     
     const count = response.Items?.length || 0;
-    console.log(`[DB] Customer ${customerId} has ${count} orders`);
+    logger.info('Customer order count retrieved', { merchantId, customerId, count });
     return count;
   } catch (error) {
-    console.error('[DB] Error getting customer order count:', error);
+    logger.error('Error getting customer order count', errorToMetadata(error, { merchantId, customerId }));
     return 0;
   }
 }
@@ -164,10 +172,15 @@ export async function getCustomerRefundsLast90Days(merchantId: string, customerI
     }));
     
     const count = response.Items?.length || 0;
-    console.log(`[DB] Customer ${customerId} has ${count} refunds in last 90 days`);
+    logger.info('Customer refunds retrieved for trailing window', {
+      merchantId,
+      customerId,
+      count,
+      windowDays: 90
+    });
     return count;
   } catch (error) {
-    console.error('[DB] Error getting customer refunds:', error);
+    logger.error('Error getting customer refunds', errorToMetadata(error, { merchantId, customerId }));
     return 0;
   }
 }
@@ -215,15 +228,21 @@ export async function checkCE3Eligibility(
       }
     }
     
-    console.log(`[DB] CE3.0 eligibility for ${customerId}: ${eligible} (${priorTransactions.length} prior transactions)`);
-    
+    logger.info('Computed CE3 eligibility', {
+      merchantId,
+      customerId,
+      eligible,
+      priorTransactionCount: priorTransactions.length,
+      matchedElements
+    });
+
     return {
       eligible,
       priorTransactionCount: priorTransactions.length,
       matchedElements
     };
   } catch (error) {
-    console.error('[DB] Error checking CE3 eligibility:', error);
+    logger.error('Error checking CE3 eligibility', errorToMetadata(error, { merchantId, customerId, chargeId }));
     return { eligible: false, priorTransactionCount: 0, matchedElements: [] };
   }
 }
