@@ -1,8 +1,9 @@
 import { ddb } from "./ddb.js";
 import { PutCommand, GetCommand, QueryCommand, ScanCommand } from "@aws-sdk/lib-dynamodb";
+import { env } from "./env.js";
 
-const MERCHANTS = process.env.MERCHANTS_TABLE!;
-const CASES = process.env.CASES_TABLE!;
+const MERCHANTS = env.MERCHANTS_TABLE;
+const CASES = env.CASES_TABLE;
 
 export async function putMerchant(m:any){
   // Use stripe_account_id as the primary key for consistency

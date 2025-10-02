@@ -1,8 +1,9 @@
 import { ddb } from './ddb.js';
 import { PutCommand } from '@aws-sdk/lib-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
+import { env } from './env.js';
 
-const AUDIT_TABLE = process.env.AUDIT_TABLE || process.env.CASES_TABLE!;
+const AUDIT_TABLE = env.AUDIT_TABLE ?? env.CASES_TABLE;
 
 export enum AuditAction {
   // Authentication

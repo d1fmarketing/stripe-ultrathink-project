@@ -1,8 +1,9 @@
 import crypto from 'crypto';
 import { ok, bad } from "../shared/responses.js";
+import { env } from "../shared/env.js";
 
-const STRIPE_CLIENT_ID = process.env.STRIPE_CLIENT_ID!;
-const STRIPE_REDIRECT_URI = process.env.STRIPE_REDIRECT_URI!;
+const STRIPE_CLIENT_ID = env.STRIPE_CLIENT_ID;
+const STRIPE_REDIRECT_URI = env.STRIPE_REDIRECT_URI;
 
 export async function handler(event: any){
   if(!STRIPE_CLIENT_ID || !STRIPE_REDIRECT_URI) return bad("Stripe not configured");

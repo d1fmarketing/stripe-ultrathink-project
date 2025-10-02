@@ -2,15 +2,15 @@ import { ok, bad } from "../shared/responses.js";
 import { requireAuth, verifyMerchantOwnership } from "../shared/auth.js";
 import { createAuditLog, AuditAction } from "../shared/auditLog.js";
 import Stripe from 'stripe';
-import { 
-  predictWinRate, 
+import {
+  predictWinRate,
   shouldSubmit,
   expectedValue,
   isAIEnabled,
   type Features
 } from '../ai';
 import { CloudWatch, StandardUnit } from '@aws-sdk/client-cloudwatch';
-import { 
+import {
   getMerchantWinRate,
   getCustomerTransactionCount,
   getCustomerTenureDays,
@@ -20,8 +20,9 @@ import {
 } from "../shared/db-helpers.js";
 import { CE3Detector } from "../ce3-engine/ce3Detector.js";
 import { TimingOptimizer } from "../ai-features/timingOptimizer.js";
+import { env } from "../shared/env.js";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion:'2025-07-30.basil' });
+const stripe = new Stripe(env.STRIPE_SECRET, { apiVersion:'2025-07-30.basil' });
 const cloudwatch = new CloudWatch({});
 
 // Helper to publish metrics

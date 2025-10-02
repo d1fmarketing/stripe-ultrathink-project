@@ -1,13 +1,14 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, ScanCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
 import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses";
+import { env } from "../shared/env.js";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const ses = new SESClient({});
 
-const MERCHANTS = process.env.MERCHANTS_TABLE!;
-const CASES = process.env.CASES_TABLE!;
-const SES_FROM = process.env.SES_FROM!;
+const MERCHANTS = env.MERCHANTS_TABLE;
+const CASES = env.CASES_TABLE;
+const SES_FROM = env.SES_FROM;
 const SES_DEFAULT_TO = process.env.SES_DEFAULT_TO || '';
 
 const OPEN = new Set(['needs_response','warning_needs_response','under_review','warning_under_review']);

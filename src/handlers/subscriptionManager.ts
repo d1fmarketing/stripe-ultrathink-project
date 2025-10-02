@@ -3,8 +3,9 @@ import { requireAuth, verifyMerchantOwnership } from "../shared/auth.js";
 import { createAuditLog, AuditAction } from "../shared/auditLog.js";
 import { putMerchant, getCase } from "../shared/db.js";
 import Stripe from 'stripe';
+import { env } from "../shared/env.js";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion: '2025-07-30.basil' });
+const stripe = new Stripe(env.STRIPE_SECRET, { apiVersion: '2025-07-30.basil' });
 
 // Handle subscription lifecycle events
 export async function handleSubscriptionEvent(event: any, subscriptionEvent: any) {

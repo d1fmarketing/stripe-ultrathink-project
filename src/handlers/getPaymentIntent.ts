@@ -1,5 +1,7 @@
 import Stripe from 'stripe';
-const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion:'2025-07-30.basil' });
+import { env } from '../shared/env.js';
+
+const stripe = new Stripe(env.STRIPE_SECRET, { apiVersion:'2025-07-30.basil' });
 
 export async function handler(evt:any){
   const { charge, merchant:{stripe_account_id} } = evt;

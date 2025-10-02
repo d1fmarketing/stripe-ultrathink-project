@@ -5,10 +5,11 @@
 
 import { ddb } from "./ddb.js";
 import { QueryCommand, ScanCommand } from "@aws-sdk/lib-dynamodb";
+import { env } from "./env.js";
 
-const CASES = process.env.CASES_TABLE!;
-const MERCHANTS = process.env.MERCHANTS_TABLE!;
-const SUBMISSIONS = process.env.SUBMISSIONS_TABLE!;
+const CASES = env.CASES_TABLE;
+const MERCHANTS = env.MERCHANTS_TABLE;
+const SUBMISSIONS = env.SUBMISSIONS_TABLE;
 
 /**
  * Calculate REAL merchant win rate from historical cases

@@ -1,5 +1,6 @@
 import { DynamoDBClient, GetItemCommand } from "@aws-sdk/client-dynamodb";
 import { getRedisClient, isRedisReady } from "../cache/redisConnection";
+import { env } from "../shared/env.js";
 
 const dynamo = new DynamoDBClient({});
 
@@ -41,7 +42,7 @@ export const handler = async (_evt: any, ctx: any) => {
   try {
     await withTimeout(
       dynamo.send(new GetItemCommand({
-        TableName: process.env.CASES_TABLE!,
+        TableName: env.CASES_TABLE,
         Key: { pk: { S: "canary" }, sk: { S: "health" } }
       })), 
       300

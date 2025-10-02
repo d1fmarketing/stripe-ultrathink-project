@@ -1,6 +1,7 @@
 import admin from 'firebase-admin';
 import { GetCommand } from "@aws-sdk/lib-dynamodb";
 import { ddb } from "./ddb.js";
+import { env } from "./env.js";
 
 // Initialize Firebase Admin SDK
 let firebaseApp: admin.app.App | null = null;
@@ -59,7 +60,7 @@ export async function validateAuth(authHeader: string | undefined): Promise<Auth
     try {
       // Try to find merchant by firebase_uid
       const result = await ddb.send(new GetCommand({
-        TableName: process.env.MERCHANTS_TABLE!,
+        TableName: env.MERCHANTS_TABLE,
         Key: { pk: `USER#${decodedToken.uid}` }
       }));
       
@@ -117,7 +118,7 @@ export async function verifyMerchantOwnership(
   // Double-check in database
   try {
     const result = await ddb.send(new GetCommand({
-      TableName: process.env.MERCHANTS_TABLE!,
+      TableName: env.MERCHANTS_TABLE,
       Key: { pk: `MERCHANT#${merchantId}` }
     }));
     

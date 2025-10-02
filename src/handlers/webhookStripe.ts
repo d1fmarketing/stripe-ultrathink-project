@@ -5,6 +5,7 @@ import { getMerchantWinRate } from "../shared/db-helpers.js";
 import { handleSubscriptionEvent } from "./subscriptionManager.js";
 import { WebhookIdempotencyService } from "../shared/webhookIdempotency.js";
 import { getMerchantWebhookSecret, validateWebhookSignature } from "../shared/webhookSecrets.js";
+import { env } from "../shared/env.js";
 import { 
   analyzeDispute, 
   quickAssessRisk,
@@ -50,10 +51,10 @@ if (process.env.ENABLE_MODEL_UPDATER === 'true') {
   }
 }
 
-const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion: '2025-07-30.basil' });
+const stripe = new Stripe(env.STRIPE_SECRET, { apiVersion: '2025-07-30.basil' });
 const sfn = new SFNClient({});
 const cloudwatch = new CloudWatch({});
-const WEBHOOK_EVENTS_TABLE = process.env.CASES_TABLE!; // Reuse cases table for webhook events
+const WEBHOOK_EVENTS_TABLE = env.CASES_TABLE; // Reuse cases table for webhook events
 
 // Helper to publish metrics
 async function publishMetric(name: string, value: number, unit: string = 'Count') {
@@ -373,9 +374,9 @@ export async function handler(event:any){
       };
       
       // Only start Step Functions if configured
-      if (process.env.SFN_ARN) {
+      if (env.SFN_ARN) {
         await sfn.send(new StartExecutionCommand({
-          stateMachineArn: process.env.SFN_ARN,
+          stateMachineArn: env.SFN_ARN,
           input: JSON.stringify(sfnInput)
         }));
       }
@@ -387,12 +388,12 @@ export async function handler(event:any){
       
       try {
         // 1. Extract all features (34+ features)
-        const featureExtractor = new FeatureExtractor(process.env.STRIPE_SECRET!);
+        const featureExtractor = new FeatureExtractor(env.STRIPE_SECRET);
         const features = await featureExtractor.extractAllFeatures(dispute);
         
         // 2. Get our original prediction (if exists)
         const caseData = await ddb.send(new GetCommand({
-          TableName: process.env.CASES_TABLE!,
+          TableName: env.CASES_TABLE,
           Key: {
             pk: `MERCHANT#${eventAccount}`,
             sk: `DISPUTE#${dispute.id}`
