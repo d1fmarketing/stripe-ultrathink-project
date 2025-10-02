@@ -1,3 +1,5 @@
+import type { BusinessKPITracker } from './kpiTracker';
+
 export interface LandingPage {
   id: string;
   url: string;
@@ -37,9 +39,17 @@ export interface PageMetrics {
 
 export class LandingPageGenerator {
   private templates: Map<string, PageTemplate>;
-  
-  constructor() {
+  private pages: Map<string, LandingPage>;
+  private kpiTracker?: BusinessKPITracker;
+
+  constructor(kpiTracker?: BusinessKPITracker) {
     this.templates = this.initializeTemplates();
+    this.pages = new Map();
+    this.kpiTracker = kpiTracker;
+  }
+
+  attachKPITracker(tracker: BusinessKPITracker): void {
+    this.kpiTracker = tracker;
   }
   
   private initializeTemplates(): Map<string, PageTemplate> {
@@ -103,8 +113,8 @@ export class LandingPageGenerator {
   generatePage(industry: string, merchantName?: string): LandingPage {
     const template = this.templates.get(industry) || this.templates.get('ecommerce')!;
     const pageId = this.generatePageId();
-    
-    return {
+
+    const page: LandingPage = {
       id: pageId,
       url: `https://chargebackautopilot.com/lp/${industry}/${pageId}`,
       industry: industry,
@@ -129,6 +139,11 @@ export class LandingPageGenerator {
       created: new Date(),
       updated: new Date()
     };
+
+    this.pages.set(pageId, page);
+    this.kpiTracker?.recordLandingPageCreated(page);
+
+    return page;
   }
   
   private generateTestimonials(industry: string): PageTestimonial[] {
@@ -242,12 +257,34 @@ export class LandingPageGenerator {
   }
   
   updateMetrics(pageId: string, metrics: Partial<PageMetrics>): void {
-    console.log(`Updating metrics for page ${pageId}:`, metrics);
+    const page = this.pages.get(pageId);
+    if (!page) {
+      throw new Error(`Landing page ${pageId} not found`);
+    }
+
+    const currentMetrics = page.metrics;
+    const merged: PageMetrics = {
+      ...currentMetrics,
+      ...metrics
+    };
+
+    const views = metrics.views ?? currentMetrics.views;
+    const conversions = metrics.conversions ?? currentMetrics.conversions;
+    if (metrics.views !== undefined || metrics.conversions !== undefined) {
+      merged.conversionRate = views > 0 ? conversions / views : 0;
+    }
+
+    page.metrics = merged;
+    page.updated = new Date();
+    this.pages.set(pageId, page);
+
+    this.kpiTracker?.recordLandingPageMetrics(pageId, page.metrics);
   }
-  
+
   getTopPerformers(limit: number = 5): LandingPage[] {
-    console.log(`Retrieving top ${limit} performing pages`);
-    return [];
+    return Array.from(this.pages.values())
+      .sort((a, b) => b.metrics.conversionRate - a.metrics.conversionRate)
+      .slice(0, limit);
   }
   
   optimizePage(page: LandingPage): LandingPage {

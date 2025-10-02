@@ -1,3 +1,5 @@
+import type { BusinessKPITracker } from './kpiTracker';
+
 export interface EmailCampaign {
   id: string;
   name: string;
@@ -46,10 +48,16 @@ export interface CampaignMetrics {
 export class OutreachAutomation {
   private campaigns: Map<string, EmailCampaign>;
   private templates: Map<string, EmailSequence[]>;
-  
-  constructor() {
+  private kpiTracker?: BusinessKPITracker;
+
+  constructor(kpiTracker?: BusinessKPITracker) {
     this.campaigns = new Map();
     this.templates = this.initializeTemplates();
+    this.kpiTracker = kpiTracker;
+  }
+
+  attachKPITracker(tracker: BusinessKPITracker): void {
+    this.kpiTracker = tracker;
   }
   
   private initializeTemplates(): Map<string, EmailSequence[]> {
@@ -239,11 +247,12 @@ See full details in your dashboard: [link]
       },
       created: new Date()
     };
-    
+
     this.campaigns.set(campaignId, campaign);
+    this.kpiTracker?.recordCampaignCreated(campaign);
     return campaign;
   }
-  
+
   addRecipients(campaignId: string, recipients: Partial<Recipient>[]): void {
     const campaign = this.campaigns.get(campaignId);
     if (!campaign) throw new Error('Campaign not found');
@@ -258,17 +267,19 @@ See full details in your dashboard: [link]
       opens: 0,
       clicks: 0
     }));
-    
+
     campaign.recipients.push(...fullRecipients);
+    this.kpiTracker?.recordCampaignAudience(campaignId, campaign.recipients.length);
   }
-  
+
   startCampaign(campaignId: string): void {
     const campaign = this.campaigns.get(campaignId);
     if (!campaign) throw new Error('Campaign not found');
-    
+
     campaign.status = 'active';
     campaign.started = new Date();
-    
+    this.kpiTracker?.recordCampaignProgress(campaignId, campaign.metrics);
+
     // In production, this would integrate with:
     // - SendGrid
     // - Mailgun
@@ -324,6 +335,7 @@ See full details in your dashboard: [link]
     // Update metrics
     campaign.metrics.sent++;
     campaign.metrics.delivered++; // Assume delivered for now
+    this.kpiTracker?.recordCampaignProgress(campaign.id, campaign.metrics);
   }
   
   private personalizeEmail(
@@ -402,6 +414,7 @@ See full details in your dashboard: [link]
     if (recipient) {
       recipient.opens++;
       campaign.metrics.opened++;
+      this.kpiTracker?.recordCampaignProgress(campaignId, campaign.metrics);
     }
   }
   
@@ -413,18 +426,29 @@ See full details in your dashboard: [link]
     if (recipient) {
       recipient.clicks++;
       campaign.metrics.clicked++;
+      this.kpiTracker?.recordCampaignProgress(campaignId, campaign.metrics);
     }
   }
   
   trackResponse(campaignId: string, recipientEmail: string): void {
     const campaign = this.campaigns.get(campaignId);
     if (!campaign) return;
-    
+
     const recipient = campaign.recipients.find(r => r.email === recipientEmail);
     if (recipient) {
       recipient.status = 'responded';
       campaign.metrics.responded++;
+      this.kpiTracker?.recordCampaignProgress(campaignId, campaign.metrics);
     }
+  }
+
+  trackConversion(campaignId: string, amount: number = 0): void {
+    const campaign = this.campaigns.get(campaignId);
+    if (!campaign) return;
+
+    campaign.metrics.converted++;
+    campaign.metrics.revenue += amount;
+    this.kpiTracker?.recordCampaignProgress(campaignId, campaign.metrics);
   }
   
   private generateCampaignId(): string {
@@ -440,14 +464,16 @@ See full details in your dashboard: [link]
     const campaign = this.campaigns.get(campaignId);
     if (campaign) {
       campaign.status = 'paused';
+      this.kpiTracker?.recordCampaignProgress(campaignId, campaign.metrics);
     }
   }
-  
+
   resumeCampaign(campaignId: string): void {
     const campaign = this.campaigns.get(campaignId);
     if (campaign && campaign.status === 'paused') {
       campaign.status = 'active';
       this.processNextBatch(campaignId);
+      this.kpiTracker?.recordCampaignProgress(campaignId, campaign.metrics);
     }
   }
 }
