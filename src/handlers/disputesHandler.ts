@@ -51,11 +51,10 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
 
   try {
     // Validate input
-    const validationSchema = {
-      ...commonSchemas.merchantId,
-      ...commonSchemas.disputeStatus,
-      ...commonSchemas.pagination
-    };
+    const validationSchema = commonSchemas.merchantId
+      .merge(commonSchemas.disputeStatus)
+      .merge(commonSchemas.pagination)
+      .strict();
     const validationResult = await validationMiddleware(event, validationSchema);
     if (validationResult) {
       return validationResult; // Return 400 if validation fails
@@ -69,7 +68,12 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     const authContext = authResult;
     
     // Use validated input
-    const input = (event as any).validatedInput || event.queryStringParameters || {};
+    const input = ((event as any).validatedInput ?? {}) as {
+      merchant?: string;
+      status?: string;
+      limit?: number;
+      offset?: number;
+    };
     let merchantId = input.merchant || authContext.merchant_id || '';
     
     if (!merchantId) {
