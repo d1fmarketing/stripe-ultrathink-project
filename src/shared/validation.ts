@@ -1,4 +1,7 @@
 import { createErrorResponse } from './responses.js';
+import { getLogger } from './logger.js';
+
+const logger = getLogger('shared.validation');
 
 // Input validation rules
 export interface ValidationRule {
@@ -205,7 +208,10 @@ export function validateInput(data: any, schema: ValidationSchema): {
   const unexpectedKeys = dataKeys.filter(key => !schemaKeys.includes(key));
   
   if (unexpectedKeys.length > 0) {
-    console.warn('Unexpected fields in input:', unexpectedKeys);
+    logger.warn('Unexpected fields detected during validation', {
+      unexpectedKeys,
+      allowedKeys: schemaKeys
+    });
     // Don't include unexpected fields in sanitized output
   }
   

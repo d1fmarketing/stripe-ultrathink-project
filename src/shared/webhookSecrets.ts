@@ -1,12 +1,14 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, GetCommand } from '@aws-sdk/lib-dynamodb';
 import { SSMClient, GetParameterCommand } from '@aws-sdk/client-ssm';
+import { getLogger, errorToMetadata } from './logger.js';
 
 const client = new DynamoDBClient({});
 const ddb = DynamoDBDocumentClient.from(client);
 const ssm = new SSMClient({});
 
 const MERCHANTS_TABLE = process.env.MERCHANTS_TABLE || 'MerchantsTable';
+const logger = getLogger('shared.webhookSecrets');
 
 /**
  * Get the webhook secret for a specific merchant account
@@ -23,7 +25,7 @@ export async function getMerchantWebhookSecret(merchantId: string): Promise<stri
     }));
     
     if (result.Item?.webhook_secret) {
-      console.log(`[WEBHOOK] Using merchant-specific webhook secret for ${merchantId}`);
+      logger.info('Using merchant-specific webhook secret', { merchantId });
       return result.Item.webhook_secret;
     }
     
@@ -31,10 +33,10 @@ export async function getMerchantWebhookSecret(merchantId: string): Promise<stri
     if (result.Item?.webhook_endpoint_id) {
       // For Connect webhooks, the secret follows a pattern
       // but we should have stored it during webhook registration
-      console.log(`[WEBHOOK] Found webhook endpoint ID but no secret for ${merchantId}`);
+      logger.warn('Found webhook endpoint ID but no secret', { merchantId });
     }
   } catch (error) {
-    console.error(`[WEBHOOK] Error fetching merchant webhook secret:`, error);
+    logger.error('Error fetching merchant webhook secret', errorToMetadata(error, { merchantId }));
   }
   
   // Fallback to global webhook secret from environment/SSM
@@ -47,7 +49,7 @@ export async function getMerchantWebhookSecret(merchantId: string): Promise<stri
 async function getGlobalWebhookSecret(): Promise<string> {
   // First check environment variable
   if (process.env.STRIPE_CONNECT_WEBHOOK_SECRET) {
-    console.log('[WEBHOOK] Using global webhook secret from environment');
+    logger.info('Using global webhook secret from environment');
     return process.env.STRIPE_CONNECT_WEBHOOK_SECRET;
   }
   
@@ -59,15 +61,15 @@ async function getGlobalWebhookSecret(): Promise<string> {
     }));
     
     if (result.Parameter?.Value) {
-      console.log('[WEBHOOK] Using global webhook secret from SSM');
+      logger.info('Using global webhook secret from SSM');
       return result.Parameter.Value;
     }
   } catch (error) {
-    console.error('[WEBHOOK] Error fetching webhook secret from SSM:', error);
+    logger.error('Error fetching webhook secret from SSM', errorToMetadata(error));
   }
-  
+
   // Last resort fallback - should not happen in production
-  console.error('[WEBHOOK] WARNING: No webhook secret found, webhooks will fail validation!');
+  logger.error('No webhook secret found, webhooks will fail validation');
   throw new Error('No webhook secret configured');
 }
 
@@ -98,10 +100,10 @@ export async function validateWebhookSignature(
       webhookSecret
     );
     
-    console.log(`[WEBHOOK] Signature validated for event ${event.id}`);
+    logger.info('Signature validated for event', { eventId: event.id, accountId });
     return true;
   } catch (error) {
-    console.error('[WEBHOOK] Signature validation failed:', error);
+    logger.error('Signature validation failed', errorToMetadata(error, { accountId }));
     return false;
   }
 }
@@ -133,9 +135,9 @@ export async function storeWebhookSecret(
       }
     }));
     
-    console.log(`[WEBHOOK] Stored webhook secret for merchant ${merchantId}`);
+    logger.info('Stored webhook secret for merchant', { merchantId, hasEndpoint: Boolean(webhookEndpointId) });
   } catch (error) {
-    console.error('[WEBHOOK] Error storing webhook secret:', error);
+    logger.error('Error storing webhook secret', errorToMetadata(error, { merchantId }));
     throw error;
   }
 }
