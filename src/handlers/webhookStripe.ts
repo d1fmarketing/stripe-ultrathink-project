@@ -50,7 +50,7 @@ if (process.env.ENABLE_MODEL_UPDATER === 'true') {
   }
 }
 
-const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion: '2025-07-30.basil' });
+const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion: '2023-10-16' as Stripe.StripeConfig['apiVersion'] });
 const sfn = new SFNClient({});
 const cloudwatch = new CloudWatch({});
 const WEBHOOK_EVENTS_TABLE = process.env.CASES_TABLE!; // Reuse cases table for webhook events
@@ -108,6 +108,65 @@ async function markEventProcessed(eventId: string, eventType: string): Promise<v
   }
 }
 
+async function recordPaymentIntentFailure(
+  eventId: string,
+  paymentIntent: Stripe.PaymentIntent,
+  eventType: string,
+  account?: string
+): Promise<void> {
+  try {
+    await ddb.send(new PutCommand({
+      TableName: WEBHOOK_EVENTS_TABLE,
+      Item: {
+        pk: `PAYMENT_INTENT#${paymentIntent.id}`,
+        sk: `EVENT#${eventId}`,
+        event_id: eventId,
+        event_type: eventType,
+        status: paymentIntent.status,
+        failure_code: paymentIntent.last_payment_error?.code || null,
+        failure_message: paymentIntent.last_payment_error?.message || null,
+        amount: paymentIntent.amount,
+        currency: paymentIntent.currency,
+        account: account || 'platform',
+        processed_at: new Date().toISOString(),
+        ttl: Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60)
+      }
+    }));
+  } catch (error) {
+    console.error('Failed to record payment intent failure:', error);
+  }
+}
+
+async function recordRefundEvent(
+  eventId: string,
+  refund: Stripe.Refund,
+  eventType: string,
+  account?: string
+): Promise<void> {
+  try {
+    await ddb.send(new PutCommand({
+      TableName: WEBHOOK_EVENTS_TABLE,
+      Item: {
+        pk: `REFUND#${refund.id}`,
+        sk: `EVENT#${eventId}`,
+        event_id: eventId,
+        event_type: eventType,
+        status: refund.status,
+        amount: refund.amount,
+        currency: refund.currency,
+        reason: refund.reason,
+        charge: refund.charge,
+        balance_transaction: refund.balance_transaction,
+        account: account || 'platform',
+        processed_at: new Date().toISOString(),
+        ttl: Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60)
+      }
+    }));
+  } catch (error) {
+    console.error('Failed to record refund event:', error);
+  }
+}
+
 export async function handler(event:any){
   const sig = event.headers['stripe-signature'] || event.headers['Stripe-Signature'];
   const rawBody = event.body;
@@ -134,6 +193,12 @@ export async function handler(event:any){
   // Check idempotency - prevent duplicate processing
   if (await WebhookIdempotencyService.isDuplicate(evt.id)) {
     console.log(`Event ${evt.id} already processed, skipping`);
+    return { statusCode: 200, body: 'duplicate event ignored' };
+  }
+
+  if (await isEventProcessed(evt.id)) {
+    console.log(`Event ${evt.id} already recorded in legacy store, skipping`);
+    await WebhookIdempotencyService.markProcessed(evt.id, { type: evt.type, reason: 'legacy-duplicate' });
     return { statusCode: 200, body: 'duplicate event ignored' };
   }
 
@@ -286,7 +351,7 @@ export async function handler(event:any){
   // Handle invoice payment failures
   if(evt.type === 'invoice.payment_failed'){
     const invoice = evt.data.object as Stripe.Invoice;
-    
+
     if((invoice as any).subscription && (invoice as any).billing_reason === 'subscription_cycle'){
       console.log('Subscription payment failed:', (invoice as any).subscription);
       
@@ -302,9 +367,67 @@ export async function handler(event:any){
     return { statusCode: 200, body: 'payment failure processed' };
   }
 
-  if(evt.type === 'charge.dispute.created' || evt.type === 'charge.dispute.updated'){
+  if ([
+    'payment_intent.payment_failed',
+    'payment_intent.canceled',
+    'payment_intent.requires_payment_method'
+  ].includes(evt.type)) {
+    const paymentIntent = evt.data.object as Stripe.PaymentIntent;
+
+    await recordPaymentIntentFailure(evt.id, paymentIntent, evt.type, eventAccount);
+    await WebhookIdempotencyService.markProcessed(evt.id, { type: evt.type });
+    await markEventProcessed(evt.id, evt.type);
+
+    return { statusCode: 200, body: 'payment intent failure recorded' };
+  }
+
+  if (evt.type === 'charge.refunded') {
+    const chargeObject = evt.data.object as Stripe.Charge;
+    const refundsList = (chargeObject.refunds?.data || []) as Stripe.Refund[];
+
+    if (refundsList.length > 0) {
+      for (const refund of refundsList) {
+        await recordRefundEvent(`${evt.id}-${refund.id}`, refund, evt.type, eventAccount);
+      }
+    } else {
+      await ddb.send(new PutCommand({
+        TableName: WEBHOOK_EVENTS_TABLE,
+        Item: {
+          pk: `CHARGE_REFUND#${chargeObject.id}`,
+          sk: `EVENT#${evt.id}`,
+          event_id: evt.id,
+          event_type: evt.type,
+          amount_refunded: chargeObject.amount_refunded,
+          currency: chargeObject.currency,
+          account: eventAccount || 'platform',
+          processed_at: new Date().toISOString(),
+          ttl: Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60)
+        }
+      }));
+    }
+
+    await WebhookIdempotencyService.markProcessed(evt.id, { type: evt.type });
+    await markEventProcessed(evt.id, evt.type);
+
+    return { statusCode: 200, body: 'charge refund recorded' };
+  }
+
+  if ([
+    'charge.refund.updated',
+    'refund.created',
+    'refund.updated'
+  ].includes(evt.type)) {
+    const refund = evt.data.object as Stripe.Refund;
+    await recordRefundEvent(evt.id, refund, evt.type, eventAccount);
+    await WebhookIdempotencyService.markProcessed(evt.id, { type: evt.type });
+    await markEventProcessed(evt.id, evt.type);
+
+    return { statusCode: 200, body: 'refund event recorded' };
+  }
+
+  if(evt.type === 'charge.dispute.created' || evt.type === 'charge.dispute.updated' || evt.type === 'charge.dispute.closed'){
     const dispute = evt.data.object as Stripe.Dispute;
-    
+
     // Initialize AI analysis
     let aiAnalysis: DisputeAnalysis | null = null;
     let riskLevel = 'medium';
@@ -315,7 +438,10 @@ export async function handler(event:any){
       if(evt.type === 'charge.dispute.created'){
         try {
           // Get charge data for analysis
-          const charge = await stripe.charges.retrieve(dispute.charge as string, { stripeAccount: eventAccount });
+          const charge = await stripe.charges.retrieve(
+            dispute.charge as string,
+            eventAccount ? { stripeAccount: eventAccount } : undefined
+          );
           
           // Quick risk assessment first
           riskLevel = quickAssessRisk(dispute);
@@ -350,7 +476,8 @@ export async function handler(event:any){
     }
     
     // Store case with AI analysis
-    await upsertCase(eventAccount!, dispute, {
+    const caseAccount = eventAccount || 'PLATFORM';
+    await upsertCase(caseAccount, dispute, {
       aiAnalysis: aiAnalysis ? {
         weaknesses: aiAnalysis.weaknesses,
         bestEvidence: aiAnalysis.bestEvidence,
@@ -360,7 +487,12 @@ export async function handler(event:any){
         recommendedActions: aiAnalysis.recommendedActions
       } : null,
       riskLevel,
-      aiEnhanced: !!aiAnalysis
+      aiEnhanced: !!aiAnalysis,
+      status: dispute.status,
+      closeReason: (dispute as any).close_reason || null,
+      lastWebhookEvent: evt.type,
+      disputedAmount: dispute.amount,
+      currency: dispute.currency
     });
     
     if(evt.type === 'charge.dispute.created'){
@@ -368,10 +500,10 @@ export async function handler(event:any){
       const sfnInput = {
         merchant: { stripe_account_id: eventAccount },
         dispute_id: dispute.id,
-        aiAnalysis,
-        riskLevel
+      aiAnalysis,
+      riskLevel
       };
-      
+
       // Only start Step Functions if configured
       if (process.env.SFN_ARN) {
         await sfn.send(new StartExecutionCommand({
@@ -382,9 +514,13 @@ export async function handler(event:any){
     }
     
     // NEW: Automatic ML data collection for resolved disputes
-    if (evt.type === 'charge.dispute.updated' && ['won', 'lost', 'warning_closed'].includes(dispute.status)) {
+    const disputeResolvedStatuses = ['won', 'lost', 'warning_closed'];
+    if (
+      (evt.type === 'charge.dispute.updated' && disputeResolvedStatuses.includes(dispute.status)) ||
+      evt.type === 'charge.dispute.closed'
+    ) {
       console.log(`📊 ML: Dispute ${dispute.id} resolved as ${dispute.status}`);
-      
+
       try {
         // 1. Extract all features (34+ features)
         const featureExtractor = new FeatureExtractor(process.env.STRIPE_SECRET!);
@@ -450,7 +586,10 @@ export async function handler(event:any){
         // 6. Update pattern cache with outcome (Safe - with fallback)
         if (patternCache && process.env.ENABLE_PATTERN_CACHE === 'true') {
           try {
-            const charge = await stripe.charges.retrieve(dispute.charge as string, { stripeAccount: eventAccount });
+            const charge = await stripe.charges.retrieve(
+              dispute.charge as string,
+              eventAccount ? { stripeAccount: eventAccount } : undefined
+            );
             const patternKey = {
               amount: charge?.amount || 0,
               reason: dispute?.reason || 'unknown',
@@ -502,6 +641,7 @@ export async function handler(event:any){
     }
   }
 
+  await WebhookIdempotencyService.markProcessed(evt.id, { type: evt.type });
   await markEventProcessed(evt.id, evt.type);
   return { statusCode:200, body:'ok' };
 }
