@@ -57,6 +57,10 @@ export async function getMerchantWinRate(merchantId: string, daysPeriod = 180): 
  * @returns Number of prior transactions
  */
 export async function getCustomerTransactionCount(merchantId: string, customerId: string): Promise<number> {
+  if (!customerId) {
+    console.warn('[DB] Missing customerId for transaction count lookup');
+    return 0;
+  }
   try {
     const response = await ddb.send(new QueryCommand({
       TableName: CASES,
@@ -84,6 +88,10 @@ export async function getCustomerTransactionCount(merchantId: string, customerId
  * @returns Days since first transaction
  */
 export async function getCustomerTenureDays(merchantId: string, customerId: string): Promise<number> {
+  if (!customerId) {
+    console.warn('[DB] Missing customerId for tenure lookup');
+    return 0;
+  }
   try {
     const response = await ddb.send(new QueryCommand({
       TableName: CASES,
@@ -120,6 +128,10 @@ export async function getCustomerTenureDays(merchantId: string, customerId: stri
  * @returns Total number of orders
  */
 export async function getCustomerOrderCount(merchantId: string, customerId: string): Promise<number> {
+  if (!customerId) {
+    console.warn('[DB] Missing customerId for order count lookup');
+    return 0;
+  }
   try {
     const response = await ddb.send(new QueryCommand({
       TableName: CASES,
@@ -148,9 +160,13 @@ export async function getCustomerOrderCount(merchantId: string, customerId: stri
  * @returns Number of refunds in last 90 days
  */
 export async function getCustomerRefundsLast90Days(merchantId: string, customerId: string): Promise<number> {
+  if (!customerId) {
+    console.warn('[DB] Missing customerId for refund lookup');
+    return 0;
+  }
   try {
     const ninetyDaysAgo = Math.floor((Date.now() - (90 * 24 * 60 * 60 * 1000)) / 1000);
-    
+
     const response = await ddb.send(new QueryCommand({
       TableName: CASES,
       KeyConditionExpression: "pk = :pk",
@@ -180,10 +196,14 @@ export async function getCustomerRefundsLast90Days(merchantId: string, customerI
  * @returns Object with eligibility status and matched transactions
  */
 export async function checkCE3Eligibility(
-  merchantId: string, 
-  customerId: string, 
+  merchantId: string,
+  customerId: string,
   chargeId: string
 ): Promise<{ eligible: boolean; priorTransactionCount: number; matchedElements: string[] }> {
+  if (!customerId) {
+    console.warn('[DB] Missing customerId for CE3 eligibility check');
+    return { eligible: false, priorTransactionCount: 0, matchedElements: [] };
+  }
   try {
     // CE3.0 requires 2+ prior undisputed transactions (120-365 days old)
     const oneYearAgo = Math.floor((Date.now() - (365 * 24 * 60 * 60 * 1000)) / 1000);
