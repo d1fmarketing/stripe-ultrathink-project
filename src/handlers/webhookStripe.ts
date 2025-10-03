@@ -1,6 +1,6 @@
 import Stripe from 'stripe';
 import { StartExecutionCommand, SFNClient } from "@aws-sdk/client-sfn";
-import { upsertCase } from "../shared/db.js";
+import { getMerchantByAccount, upsertCase } from "../shared/db.js";
 import { getMerchantWinRate } from "../shared/db-helpers.js";
 import { handleSubscriptionEvent } from "./subscriptionManager.js";
 import { WebhookIdempotencyService } from "../shared/webhookIdempotency.js";
@@ -387,7 +387,22 @@ export async function handler(event:any){
       
       try {
         // 1. Extract all features (34+ features)
-        const featureExtractor = new FeatureExtractor(process.env.STRIPE_SECRET!);
+        let extractorKey = process.env.STRIPE_SECRET!;
+        let extractorStripeAccount = eventAccount || undefined;
+
+        if (eventAccount) {
+          try {
+            const merchant = await getMerchantByAccount(eventAccount);
+            if (merchant?.access_token) {
+              extractorKey = merchant.access_token;
+              extractorStripeAccount = undefined;
+            }
+          } catch (error) {
+            console.warn('Failed to load merchant access token for feature extraction:', error);
+          }
+        }
+
+        const featureExtractor = new FeatureExtractor(extractorKey, extractorStripeAccount);
         const features = await featureExtractor.extractAllFeatures(dispute);
         
         // 2. Get our original prediction (if exists)
