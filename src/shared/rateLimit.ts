@@ -1,6 +1,6 @@
 import { createErrorResponse } from './responses.js';
 import { ddb } from './ddb.js';
-import { PutCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
+import { UpdateCommand } from '@aws-sdk/lib-dynamodb';
 
 const RATE_LIMIT_TABLE = process.env.CASES_TABLE!; // Reuse cases table
 
@@ -17,40 +17,36 @@ interface RateLimitConfig {
  */
 export async function checkRateLimit(config: RateLimitConfig): Promise<boolean> {
   const now = Math.floor(Date.now() / 1000);
-  const windowStart = now - config.windowSeconds;
-  
+  const bucketStart = Math.floor(now / config.windowSeconds) * config.windowSeconds;
+
   // Create a unique key for this rate limit window
   const pk = `RATELIMIT#${config.identifier}`;
-  const sk = `WINDOW#${windowStart}`;
+  const sk = `WINDOW#${bucketStart}`;
   
   try {
-    // Get current window data
-    const result = await ddb.send(new GetCommand({
+    const ttl = bucketStart + config.windowSeconds + 60; // give a small buffer past the window end
+
+    await ddb.send(new UpdateCommand({
       TableName: RATE_LIMIT_TABLE,
-      Key: { pk, sk }
+      Key: { pk, sk },
+      UpdateExpression: 'SET count = if_not_exists(count, :zero) + :increment, ttl = :ttl',
+      ConditionExpression: 'attribute_not_exists(count) OR count < :maxRequests',
+      ExpressionAttributeValues: {
+        ':zero': 0,
+        ':increment': 1,
+        ':maxRequests': config.maxRequests,
+        ':ttl': ttl
+      },
+      ReturnValues: 'UPDATED_NEW'
     }));
-    
-    const currentCount = result.Item?.count || 0;
-    
-    // Check if rate limit exceeded
-    if (currentCount >= config.maxRequests) {
-      console.log(`Rate limit exceeded for ${config.identifier}: ${currentCount}/${config.maxRequests}`);
+
+    return true;
+  } catch (error: any) {
+    if (error?.name === 'ConditionalCheckFailedException') {
+      console.log(`Rate limit exceeded for ${config.identifier}`);
       return false;
     }
-    
-    // Increment counter
-    await ddb.send(new PutCommand({
-      TableName: RATE_LIMIT_TABLE,
-      Item: {
-        pk,
-        sk,
-        count: currentCount + 1,
-        ttl: now + config.windowSeconds + 3600 // TTL: window + 1 hour
-      }
-    }));
-    
-    return true;
-  } catch (error) {
+
     console.error('Rate limit check error:', error);
     // Allow request on error to avoid blocking legitimate traffic
     return true;
