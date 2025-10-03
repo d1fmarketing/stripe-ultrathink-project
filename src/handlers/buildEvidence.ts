@@ -8,6 +8,7 @@ import {
 import { CloudWatch, StandardUnit } from '@aws-sdk/client-cloudwatch';
 import { ddb } from "../shared/ddb";
 import { PutCommand } from "@aws-sdk/lib-dynamodb";
+import { withErrorHandling } from "../shared/errorHandling.js";
 
 // ML Enhancement Imports (Safe - with fallbacks)
 let patternCache: any = null;
@@ -61,7 +62,7 @@ async function publishMetric(name: string, value: number, unit: string = 'Count'
   }
 }
 
-export async function handler(evt:any){
+async function baseHandler(evt:any){
   const { dispute, charge, payment_intent, merchant } = evt;
   
   // Use merchant's OAuth token for connected accounts, fallback to global secret
@@ -204,7 +205,7 @@ export async function handler(evt:any){
     // Apply ML optimizations if available
     if (mlOptimizedEvidence && fraudDetected) {
       console.log('🚨 ML: Fraud detected, adding extra verification evidence');
-      evidencePackage.fraudWarning = true;
+      (evidencePackage as any).fraudWarning = true;
     }
     
     // Extract the evidence object for Stripe submission
@@ -366,3 +367,5 @@ export async function handler(evt:any){
     return { ...evt, evidence };
   }
 }
+
+export const handler = withErrorHandling('buildEvidence', baseHandler);

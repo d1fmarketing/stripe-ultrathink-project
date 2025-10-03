@@ -1,4 +1,5 @@
 import { DynamoDBClient, GetItemCommand } from "@aws-sdk/client-dynamodb";
+import { withErrorHandling } from "../shared/errorHandling.js";
 
 // Minimal Redis check without heavy imports
 async function checkRedis(): Promise<{ ok: boolean; error?: string }> {
@@ -38,7 +39,7 @@ async function checkRedis(): Promise<{ ok: boolean; error?: string }> {
 
 const dynamo = new DynamoDBClient({});
 
-export const handler = async (_evt: any, ctx: any) => {
+async function baseHandler(_evt: any, ctx: any) {
   if (ctx && typeof ctx === 'object') {
     ctx.callbackWaitsForEmptyEventLoop = false;
   }
@@ -87,4 +88,9 @@ export const handler = async (_evt: any, ctx: any) => {
       ts: new Date().toISOString()
     })
   };
-};
+}
+
+export const handler = withErrorHandling('healthMinimal', baseHandler, {
+  timeoutMs: 2000,
+  retries: 1
+});

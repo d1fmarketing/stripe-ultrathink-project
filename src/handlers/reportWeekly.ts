@@ -1,6 +1,7 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, ScanCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
 import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses";
+import { withErrorHandling } from "../shared/errorHandling.js";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const ses = new SESClient({});
@@ -12,7 +13,7 @@ const SES_DEFAULT_TO = process.env.SES_DEFAULT_TO || '';
 
 const OPEN = new Set(['needs_response','warning_needs_response','under_review','warning_under_review']);
 
-export async function handler(){
+async function baseHandler(){
   const merchants = await ddb.send(new ScanCommand({ TableName: MERCHANTS }));
   const ms = (merchants.Items||[]).map(i => (i.stripe_account_id || i.merchant_id)).filter(Boolean);
   const since = Math.floor((Date.now() - 7*24*3600*1000)/1000);
@@ -64,3 +65,5 @@ export async function handler(){
 
   return { ok:true };
 }
+
+export const handler = withErrorHandling('reportWeekly', baseHandler);

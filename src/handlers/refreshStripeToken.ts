@@ -2,11 +2,12 @@ import Stripe from 'stripe';
 import { ok, bad } from "../shared/responses.js";
 import { requireAuth } from "../shared/auth.js";
 import { getMerchantByAccount, putMerchant } from "../shared/db.js";
+import { withErrorHandling } from "../shared/errorHandling.js";
 
 /**
  * Refresh Stripe OAuth access token using refresh token
  */
-export async function handler(event: any) {
+async function baseHandler(event: any) {
   // REQUIRE AUTHENTICATION
   const authResult = await requireAuth(event);
   if ('statusCode' in authResult) {
@@ -64,3 +65,5 @@ export async function handler(event: any) {
     return bad('Failed to refresh token: ' + error.message);
   }
 }
+
+export const handler = withErrorHandling('refreshStripeToken', baseHandler);

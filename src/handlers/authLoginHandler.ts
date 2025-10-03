@@ -1,6 +1,7 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import jwt from 'jsonwebtoken';
-import crypto from 'crypto';
+import { createErrorResponse } from '../shared/responses.js';
+import { withErrorHandling } from '../shared/errorHandling.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'stripedshield-demo-secret-2025';
 const JWT_EXPIRY = '7d'; // 7 days validity
@@ -41,7 +42,9 @@ const DEMO_USERS = [
   }
 ];
 
-export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+const HANDLER_NAME = 'authLoginHandler';
+
+async function baseHandler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
   const startTime = Date.now();
   
   // CORS headers
@@ -64,7 +67,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
   try {
     // Parse request body
     let loginRequest: LoginRequest;
-    
+
     try {
       loginRequest = JSON.parse(event.body || '{}');
     } catch (error) {
@@ -197,15 +200,22 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     };
 
   } catch (error) {
-    console.error('Error in auth login handler:', error);
-    
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({
-        success: false,
-        error: 'Internal server error'
-      })
-    };
+    console.error('Error in auth login handler:', {
+      error,
+      requestId: event.headers?.['x-request-id'] || event.headers?.['X-Request-ID']
+    });
+
+    return createErrorResponse(500, 'Internal server error', {
+      handler: HANDLER_NAME,
+      requestId: event.headers?.['x-request-id'] || event.headers?.['X-Request-ID']
+    });
   }
-};
+}
+
+export const handler = withErrorHandling<APIGatewayProxyEvent, APIGatewayProxyResult>(
+  HANDLER_NAME,
+  baseHandler,
+  {
+    timeoutMs: 5000
+  }
+);

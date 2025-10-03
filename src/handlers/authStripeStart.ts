@@ -1,10 +1,11 @@
 import crypto from 'crypto';
 import { ok, bad } from "../shared/responses.js";
+import { withErrorHandling } from "../shared/errorHandling.js";
 
 const STRIPE_CLIENT_ID = process.env.STRIPE_CLIENT_ID!;
 const STRIPE_REDIRECT_URI = process.env.STRIPE_REDIRECT_URI!;
 
-export async function handler(event: any){
+async function baseHandler(event: any){
   if(!STRIPE_CLIENT_ID || !STRIPE_REDIRECT_URI) return bad("Stripe not configured");
   
   // Get Firebase UID from query parameters to link accounts
@@ -39,3 +40,5 @@ export async function handler(event: any){
     body: ''
   };
 }
+
+export const handler = withErrorHandling('authStripeStart', baseHandler);

@@ -3,6 +3,7 @@ import { requireAuth, verifyMerchantOwnership } from '../shared/auth.js';
 import { listCases } from '../shared/db.js';
 import { validationMiddleware, commonSchemas } from '../shared/validation.js';
 import Stripe from 'stripe';
+import { withErrorHandling } from '../shared/errorHandling.js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion: '2025-07-30.basil' });
 
@@ -29,7 +30,7 @@ interface Dispute {
 
 // Now using REAL Stripe data - no more mocks!
 
-export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+async function baseHandler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
   const startTime = Date.now();
   
   // CORS headers
@@ -168,4 +169,13 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       })
     };
   }
-};
+}
+
+export const handler = withErrorHandling<APIGatewayProxyEvent, APIGatewayProxyResult>(
+  'disputesHandler',
+  baseHandler,
+  {
+    timeoutMs: 10000,
+    retries: 1
+  }
+);
