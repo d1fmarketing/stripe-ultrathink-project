@@ -24,13 +24,17 @@ export async function getMerchantWinRate(merchantId: string, daysPeriod = 180): 
     const response = await ddb.send(new QueryCommand({
       TableName: CASES,
       KeyConditionExpression: "pk = :pk",
-      FilterExpression: "created_at_epoch >= :since AND (dispute_status = :won OR dispute_status = :lost)",
+      FilterExpression: "created_at_epoch >= :since AND (#status = :won OR #status = :lost)",
       ExpressionAttributeValues: {
         ":pk": `MERCHANT#${merchantId}`,
         ":since": Math.floor(since / 1000),
         ":won": "won",
         ":lost": "lost"
-      }
+      },
+      ExpressionAttributeNames: {
+        "#status": "status"
+      },
+      ProjectionExpression: "#status, created_at_epoch"
     }));
     
     const items = response.Items || [];
@@ -39,7 +43,7 @@ export async function getMerchantWinRate(merchantId: string, daysPeriod = 180): 
       return 0.5;
     }
     
-    const wins = items.filter(item => item.dispute_status === "won").length;
+    const wins = items.filter(item => item.status === "won").length;
     const winRate = wins / items.length;
     
     console.log(`[DB] Merchant ${merchantId} win rate: ${(winRate * 100).toFixed(1)}% (${wins}/${items.length} cases)`);
