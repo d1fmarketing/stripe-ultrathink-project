@@ -1,6 +1,6 @@
 import { createErrorResponse } from './responses.js';
 import { ddb } from './ddb.js';
-import { PutCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
+import { UpdateCommand } from '@aws-sdk/lib-dynamodb';
 
 const RATE_LIMIT_TABLE = process.env.CASES_TABLE!; // Reuse cases table
 
@@ -17,40 +17,43 @@ interface RateLimitConfig {
  */
 export async function checkRateLimit(config: RateLimitConfig): Promise<boolean> {
   const now = Math.floor(Date.now() / 1000);
-  const windowStart = now - config.windowSeconds;
+  const windowStart = Math.floor(now / config.windowSeconds) * config.windowSeconds;
+  const windowEnd = windowStart + config.windowSeconds;
   
   // Create a unique key for this rate limit window
   const pk = `RATELIMIT#${config.identifier}`;
   const sk = `WINDOW#${windowStart}`;
   
   try {
-    // Get current window data
-    const result = await ddb.send(new GetCommand({
+    const updateResult = await ddb.send(new UpdateCommand({
       TableName: RATE_LIMIT_TABLE,
-      Key: { pk, sk }
+      Key: { pk, sk },
+      UpdateExpression: 'ADD #count :increment SET ttl = if_not_exists(ttl, :ttl)',
+      ExpressionAttributeNames: {
+        '#count': 'count'
+      },
+      ExpressionAttributeValues: {
+        ':increment': 1,
+        ':ttl': windowEnd,
+        ':limit': config.maxRequests
+      },
+      ConditionExpression: 'attribute_not_exists(#count) OR #count < :limit',
+      ReturnValues: 'ALL_NEW'
     }));
-    
-    const currentCount = result.Item?.count || 0;
-    
-    // Check if rate limit exceeded
-    if (currentCount >= config.maxRequests) {
+
+    const currentCount = updateResult.Attributes?.count ?? 0;
+
+    if (currentCount > config.maxRequests) {
       console.log(`Rate limit exceeded for ${config.identifier}: ${currentCount}/${config.maxRequests}`);
       return false;
     }
-    
-    // Increment counter
-    await ddb.send(new PutCommand({
-      TableName: RATE_LIMIT_TABLE,
-      Item: {
-        pk,
-        sk,
-        count: currentCount + 1,
-        ttl: now + config.windowSeconds + 3600 // TTL: window + 1 hour
-      }
-    }));
-    
+
     return true;
   } catch (error) {
+    if ((error as any)?.name === 'ConditionalCheckFailedException') {
+      console.log(`Rate limit exceeded for ${config.identifier}: ${config.maxRequests}/${config.maxRequests}`);
+      return false;
+    }
     console.error('Rate limit check error:', error);
     // Allow request on error to avoid blocking legitimate traffic
     return true;
