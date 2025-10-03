@@ -20,6 +20,7 @@ import {
 } from "../shared/db-helpers.js";
 import { CE3Detector } from "../ce3-engine/ce3Detector.js";
 import { TimingOptimizer } from "../ai-features/timingOptimizer.js";
+import { withErrorHandling } from "../shared/errorHandling.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion:'2025-07-30.basil' });
 const cloudwatch = new CloudWatch({});
@@ -41,7 +42,7 @@ async function publishMetric(name: string, value: number, unit: string = 'Count'
   }
 }
 
-export async function handler(event:any){
+async function baseHandler(event:any){
   // REQUIRE AUTHENTICATION
   const authResult = await requireAuth(event);
   if ('statusCode' in authResult) {
@@ -269,3 +270,5 @@ export async function handler(event:any){
     return bad(`Failed to submit dispute: ${error.message}`);
   }
 }
+
+export const handler = withErrorHandling('submitCase', baseHandler);

@@ -1,9 +1,10 @@
 import Stripe from 'stripe';
 import { getMerchantByAccount, upsertCase } from "../shared/db.js";
+import { withErrorHandling } from "../shared/errorHandling.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion:'2025-07-30.basil' });
 
-export async function handler(evt:any){
+async function baseHandler(evt:any){
   const { dispute_id, merchant: { stripe_account_id } } = evt;
   const merchant = await getMerchantByAccount(stripe_account_id);
   const d = await stripe.disputes.retrieve(dispute_id, { stripeAccount: stripe_account_id });
@@ -11,3 +12,5 @@ export async function handler(evt:any){
   await upsertCase(stripe_account_id, d, {});
   return { ...evt, dispute: d, merchant, "dispute.evidence_details.due_by_minus_48h": tMinus };
 }
+
+export const handler = withErrorHandling('getDispute', baseHandler);

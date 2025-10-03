@@ -5,6 +5,7 @@ import { getMerchantWinRate } from "../shared/db-helpers.js";
 import { handleSubscriptionEvent } from "./subscriptionManager.js";
 import { WebhookIdempotencyService } from "../shared/webhookIdempotency.js";
 import { getMerchantWebhookSecret, validateWebhookSignature } from "../shared/webhookSecrets.js";
+import { createErrorResponse } from "../shared/responses.js";
 import { 
   analyzeDispute, 
   quickAssessRisk,
@@ -16,6 +17,7 @@ import { ddb } from "../shared/ddb.js";
 import { PutCommand, GetCommand } from "@aws-sdk/lib-dynamodb";
 import { FeatureExtractor } from '../ml-predictor/featureExtractor';
 import { FeedbackLoop } from '../ml/feedbackLoop';
+import { withErrorHandling } from "../shared/errorHandling.js";
 
 // ML Enhancement Imports (Safe - with fallbacks)
 let patternCache: any = null;
@@ -108,27 +110,71 @@ async function markEventProcessed(eventId: string, eventType: string): Promise<v
   }
 }
 
-export async function handler(event:any){
-  const sig = event.headers['stripe-signature'] || event.headers['Stripe-Signature'];
+async function baseHandler(event:any){
+  const headers = event.headers || {};
+  const sig = headers['stripe-signature'] || headers['Stripe-Signature'];
   const rawBody = event.body;
-  const account = (event.headers['stripe-account'] || event.headers['Stripe-Account']) as string | undefined;
-  
-  // Get the webhook secret from environment variable
-  // For production, use different secrets for account vs platform webhooks
-  const webhookSecret = account 
-    ? process.env.STRIPE_CONNECT_WEBHOOK_SECRET || process.env.STRIPE_WEBHOOK_SECRET || 'whsec_test'
-    : process.env.STRIPE_WEBHOOK_SECRET || 'whsec_test';
-  
-  if (!webhookSecret || webhookSecret === 'whsec_test') {
+  const isBase64Encoded = event.isBase64Encoded;
+  const account = (headers['stripe-account'] || headers['Stripe-Account']) as string | undefined;
+  const requestId = headers['x-request-id'] || headers['X-Request-ID'] || event.requestContext?.requestId;
+
+  if (!sig) {
+    console.warn('Webhook received without Stripe-Signature header', { requestId, account });
+    return createErrorResponse(400, 'Missing Stripe-Signature header', { handler: 'webhookStripe', account, requestId });
+  }
+
+  if (!rawBody) {
+    console.warn('Webhook received without body payload', { requestId, account });
+    return createErrorResponse(400, 'Missing webhook payload', { handler: 'webhookStripe', account, requestId });
+  }
+
+  const payloadBuffer = typeof rawBody === 'string'
+    ? (isBase64Encoded ? Buffer.from(rawBody, 'base64') : Buffer.from(rawBody))
+    : Buffer.from(JSON.stringify(rawBody));
+
+  let webhookSecret: string | undefined;
+  try {
+    webhookSecret = account
+      ? await getMerchantWebhookSecret(account)
+      : process.env.STRIPE_WEBHOOK_SECRET;
+  } catch (error) {
+    console.error('Failed to resolve webhook secret for account', { account, error, requestId });
+    return createErrorResponse(500, 'Unable to resolve webhook secret', { handler: 'webhookStripe', account, requestId });
+  }
+
+  if (!webhookSecret) {
+    console.error('No webhook secret configured', { account, requestId });
+    return createErrorResponse(500, 'No webhook secret configured', { handler: 'webhookStripe', account, requestId });
+  }
+
+  if (webhookSecret === 'whsec_test') {
     console.warn('Using test webhook secret - configure STRIPE_WEBHOOK_SECRET for production');
   }
-  
+
   let evt: Stripe.Event;
   try{
-    evt = stripe.webhooks.constructEvent(rawBody, sig!, webhookSecret);
+    evt = stripe.webhooks.constructEvent(payloadBuffer, sig, webhookSecret);
   }catch(e:any){
-    console.error(`Webhook signature verification failed for account ${account}:`, e.message);
-    return { statusCode:400, body:`bad sig: ${e.message}` };
+    console.error(`Webhook signature verification failed for account ${account}:`, e?.message, {
+      requestId,
+      code: e?.code
+    });
+    return createErrorResponse(400, 'Webhook signature verification failed', {
+      handler: 'webhookStripe',
+      account,
+      requestId,
+      error: e?.message
+    });
+  }
+
+  const signatureValid = await validateWebhookSignature(payloadBuffer, sig, account);
+  if (!signatureValid) {
+    return createErrorResponse(400, 'Webhook signature validation failed', {
+      handler: 'webhookStripe',
+      account,
+      requestId,
+      reason: 'secondary_validation_failed'
+    });
   }
 
   // Check idempotency - prevent duplicate processing
@@ -505,3 +551,10 @@ export async function handler(event:any){
   await markEventProcessed(evt.id, evt.type);
   return { statusCode:200, body:'ok' };
 }
+
+export const handler = withErrorHandling('webhookStripe', baseHandler, {
+  timeoutMs: 15000,
+  retries: 2,
+  retryDelayMs: 500
+});
+

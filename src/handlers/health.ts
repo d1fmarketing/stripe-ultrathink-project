@@ -1,5 +1,6 @@
 import { DynamoDBClient, GetItemCommand } from "@aws-sdk/client-dynamodb";
 import { getRedisClient, isRedisReady } from "../cache/redisConnection";
+import { withErrorHandling } from "../shared/errorHandling.js";
 
 const dynamo = new DynamoDBClient({});
 
@@ -9,7 +10,7 @@ const withTimeout = <T>(p: Promise<T>, ms = 350) =>
     new Promise<never>((_, rej) => setTimeout(() => rej(new Error("timeout")), ms))
   ]);
 
-export const handler = async (_evt: any, ctx: any) => {
+async function baseHandler(_evt: any, ctx: any) {
   if (ctx && typeof ctx === 'object') {
     ctx.callbackWaitsForEmptyEventLoop = false;
   }
@@ -67,4 +68,9 @@ export const handler = async (_evt: any, ctx: any) => {
       ts: new Date().toISOString() 
     })
   };
-};
+}
+
+export const handler = withErrorHandling('health', baseHandler, {
+  timeoutMs: 2000,
+  retries: 1
+});

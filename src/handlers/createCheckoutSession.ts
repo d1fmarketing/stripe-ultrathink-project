@@ -1,10 +1,11 @@
 import Stripe from 'stripe';
 import { ok, bad } from "../shared/responses.js";
 import { requireAuth } from "../shared/auth.js";
+import { withErrorHandling } from "../shared/errorHandling.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion: '2025-07-30.basil' });
 
-export async function handler(event: any) {
+async function baseHandler(event: any) {
   // Get auth context if user is logged in (optional for checkout)
   let authContext = null;
   try {
@@ -79,3 +80,5 @@ export async function handler(event: any) {
     return bad(error.message);
   }
 }
+
+export const handler = withErrorHandling('createCheckoutSession', baseHandler);

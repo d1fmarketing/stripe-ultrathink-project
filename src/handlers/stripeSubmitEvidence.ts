@@ -1,6 +1,7 @@
 import Stripe from 'stripe';
+import { withErrorHandling } from "../shared/errorHandling.js";
 
-export async function handler(evt:any){
+async function baseHandler(evt:any){
   const { dispute, merchant } = evt;
   
   // Use merchant's OAuth token for connected accounts, fallback to global secret with stripeAccount header
@@ -22,3 +23,5 @@ export async function handler(evt:any){
   const res = await stripe.disputes.update(dispute.id, { submit: true }, stripeOptions);
   return { submitted: true, dispute: res };
 }
+
+export const handler = withErrorHandling('stripeSubmitEvidence', baseHandler);

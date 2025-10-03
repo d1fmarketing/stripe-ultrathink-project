@@ -1,8 +1,9 @@
 import { putMerchant } from "../shared/db.js";
 import Stripe from 'stripe';
 import { createAuditLog, AuditAction, auditFailure } from "../shared/auditLog.js";
+import { withErrorHandling } from "../shared/errorHandling.js";
 
-export async function handler(event:any){
+async function baseHandler(event:any){
   const qs = event.queryStringParameters || {};
   const code = qs.code;
   const state = qs.state; // Should contain firebase_uid
@@ -103,3 +104,5 @@ export async function handler(event:any){
   const frontendCallbackUrl = `https://stripedshield-founders-1755231149.netlify.app/connect.html?success=true&stripe_account_id=${merchant_id}${firebase_uid ? '&uid=' + firebase_uid : ''}`;
   return { statusCode: 302, headers: { Location: frontendCallbackUrl }, body: '' };
 }
+
+export const handler = withErrorHandling('authStripeCallback', baseHandler);

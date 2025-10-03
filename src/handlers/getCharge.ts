@@ -1,7 +1,8 @@
 import Stripe from 'stripe';
+import { withErrorHandling } from "../shared/errorHandling.js";
 const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion:'2025-07-30.basil' });
 
-export async function handler(evt:any){
+async function baseHandler(evt:any){
   // Safely extract stripe_account_id with proper error handling
   const { dispute, merchant } = evt;
   
@@ -31,3 +32,5 @@ export async function handler(evt:any){
     };
   }
 }
+
+export const handler = withErrorHandling('getCharge', baseHandler);

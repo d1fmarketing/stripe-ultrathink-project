@@ -1,12 +1,13 @@
 import { ScanCommand } from "@aws-sdk/lib-dynamodb";
 import { ddb } from "../shared/ddb.js";
 import { putMerchant } from "../shared/db.js";
+import { withErrorHandling } from "../shared/errorHandling.js";
 
 /**
  * Scheduled Lambda to refresh OAuth tokens before they expire
  * Should run daily via EventBridge
  */
-export async function handler(event: any) {
+async function baseHandler(event: any) {
   const MERCHANTS_TABLE = process.env.MERCHANTS_TABLE!;
   const REFRESH_BEFORE_HOURS = 24; // Refresh tokens 24 hours before expiry
   
@@ -94,3 +95,6 @@ export async function handler(event: any) {
     };
   }
 }
+
+export const handler = withErrorHandling('autoRefreshTokens', baseHandler);
+
