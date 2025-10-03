@@ -1,6 +1,6 @@
 import Stripe from 'stripe';
 import { StartExecutionCommand, SFNClient } from "@aws-sdk/client-sfn";
-import { upsertCase } from "../shared/db.js";
+import { upsertCase, getMerchantByAccount } from "../shared/db.js";
 import { getMerchantWinRate } from "../shared/db-helpers.js";
 import { handleSubscriptionEvent } from "./subscriptionManager.js";
 import { WebhookIdempotencyService } from "../shared/webhookIdempotency.js";
@@ -304,6 +304,16 @@ export async function handler(event:any){
 
   if(evt.type === 'charge.dispute.created' || evt.type === 'charge.dispute.updated'){
     const dispute = evt.data.object as Stripe.Dispute;
+
+    let merchantAccessToken: string | undefined;
+    if (eventAccount) {
+      try {
+        const merchantRecord = await getMerchantByAccount(eventAccount);
+        merchantAccessToken = merchantRecord?.access_token;
+      } catch (error) {
+        console.error('Failed to load merchant credentials for feature extraction:', error);
+      }
+    }
     
     // Initialize AI analysis
     let aiAnalysis: DisputeAnalysis | null = null;
@@ -387,7 +397,10 @@ export async function handler(event:any){
       
       try {
         // 1. Extract all features (34+ features)
-        const featureExtractor = new FeatureExtractor(process.env.STRIPE_SECRET!);
+        const featureExtractor = new FeatureExtractor(
+          merchantAccessToken || process.env.STRIPE_SECRET!,
+          merchantAccessToken ? undefined : eventAccount
+        );
         const features = await featureExtractor.extractAllFeatures(dispute);
         
         // 2. Get our original prediction (if exists)
