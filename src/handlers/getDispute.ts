@@ -6,8 +6,20 @@ const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion:'2025-07-30.b
 export async function handler(evt:any){
   const { dispute_id, merchant: { stripe_account_id } } = evt;
   const merchant = await getMerchantByAccount(stripe_account_id);
-  const d = await stripe.disputes.retrieve(dispute_id, { stripeAccount: stripe_account_id });
+  const d = await stripe.disputes.retrieve(
+    dispute_id,
+    { expand: ['charge'] },
+    { stripeAccount: stripe_account_id }
+  );
+  const chargeObj = typeof d.charge === 'object' && d.charge ? d.charge as Stripe.Charge : undefined;
+  const customerId = chargeObj
+    ? (typeof chargeObj.customer === 'string' ? chargeObj.customer : (chargeObj.customer as Stripe.Customer)?.id)
+    : undefined;
   const tMinus = d.evidence_details?.due_by ? new Date((d.evidence_details.due_by*1000) - (48*3600*1000)).toISOString() : null;
-  await upsertCase(stripe_account_id, d, {});
+  await upsertCase(stripe_account_id, d, {
+    customerId,
+    order_id: chargeObj?.metadata?.order_id,
+    refunded: chargeObj?.refunded
+  });
   return { ...evt, dispute: d, merchant, "dispute.evidence_details.due_by_minus_48h": tMinus };
 }

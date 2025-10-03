@@ -1,6 +1,6 @@
 import { createErrorResponse } from './responses.js';
 import { ddb } from './ddb.js';
-import { PutCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
+import { UpdateCommand } from '@aws-sdk/lib-dynamodb';
 
 const RATE_LIMIT_TABLE = process.env.CASES_TABLE!; // Reuse cases table
 
@@ -24,35 +24,28 @@ export async function checkRateLimit(config: RateLimitConfig): Promise<boolean> 
   const sk = `WINDOW#${windowStart}`;
   
   try {
-    // Get current window data
-    const result = await ddb.send(new GetCommand({
+    await ddb.send(new UpdateCommand({
       TableName: RATE_LIMIT_TABLE,
-      Key: { pk, sk }
+      Key: { pk, sk },
+      UpdateExpression: 'SET count = if_not_exists(count, :zero) + :inc, ttl = :ttl',
+      ConditionExpression: 'attribute_not_exists(count) OR count < :max',
+      ExpressionAttributeValues: {
+        ':zero': 0,
+        ':inc': 1,
+        ':ttl': now + config.windowSeconds + 3600,
+        ':max': config.maxRequests
+      },
+      ReturnValues: 'UPDATED_NEW'
     }));
-    
-    const currentCount = result.Item?.count || 0;
-    
-    // Check if rate limit exceeded
-    if (currentCount >= config.maxRequests) {
-      console.log(`Rate limit exceeded for ${config.identifier}: ${currentCount}/${config.maxRequests}`);
+
+    return true;
+  } catch (error: any) {
+    if (error?.name === 'ConditionalCheckFailedException') {
+      console.log(`Rate limit exceeded for ${config.identifier}`);
       return false;
     }
-    
-    // Increment counter
-    await ddb.send(new PutCommand({
-      TableName: RATE_LIMIT_TABLE,
-      Item: {
-        pk,
-        sk,
-        count: currentCount + 1,
-        ttl: now + config.windowSeconds + 3600 // TTL: window + 1 hour
-      }
-    }));
-    
-    return true;
-  } catch (error) {
     console.error('Rate limit check error:', error);
-    // Allow request on error to avoid blocking legitimate traffic
+    // Allow request on unexpected error to avoid blocking legitimate traffic
     return true;
   }
 }

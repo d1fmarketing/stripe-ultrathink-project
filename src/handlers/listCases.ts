@@ -66,10 +66,11 @@ export async function handler(event:any){
   }
   
   // Try Redis cache first for performance
-  const cacheKey = `cases:${merchantId}:${input.status || 'all'}`;
+  const limit = input.limit !== undefined ? Number(input.limit) : undefined;
+  const cacheKey = `cases:${merchantId}:${input.status || 'all'}:${limit || 'default'}:${input.cursor || 'start'}`;
   const redisClient = getRedis();
   
-  if (redisClient) {
+  if (redisClient && !input.cursor) {
     try {
       const cached = await redisClient.get(cacheKey);
       if (cached) {
@@ -83,22 +84,27 @@ export async function handler(event:any){
   }
   
   // Query database
-  const items = await listCases(merchantId, input.status);
-  
+  const { items, cursor } = await listCases(merchantId, {
+    status: input.status,
+    limit,
+    cursor: input.cursor,
+    sortBy: 'due'
+  });
+
   // Keep the payload minimal for the tiny admin UI
-  const out = items.map((i:any)=>({ 
-    dispute_id:i.dispute_id, 
-    amount_cents:i.amount_cents, 
-    currency:i.currency, 
-    reason:i.reason, 
-    status:i.status, 
-    due_by_epoch:i.due_by_epoch 
+  const out = items.map((i:any)=>({
+    dispute_id:i.dispute_id,
+    amount_cents:i.amount_cents,
+    currency:i.currency,
+    reason:i.reason,
+    status:i.status,
+    due_by_epoch:i.due_by_epoch
   }));
-  
-  const response = { items: out };
-  
+
+  const response = { items: out, cursor };
+
   // Cache the response for 90 seconds
-  if (redisClient) {
+  if (redisClient && !input.cursor) {
     try {
       await redisClient.setex(cacheKey, 90, JSON.stringify(response));
       console.log(`[CACHE SET] Cached cases for ${merchantId} (90s TTL)`);
