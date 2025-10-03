@@ -1,4 +1,6 @@
+import { PutCommand } from "@aws-sdk/lib-dynamodb";
 import { putMerchant } from "../shared/db.js";
+import { ddb } from "../shared/ddb.js";
 import Stripe from 'stripe';
 import { createAuditLog, AuditAction, auditFailure } from "../shared/auditLog.js";
 
@@ -42,7 +44,7 @@ export async function handler(event:any){
   }
 
   // Save all OAuth data to DynamoDB
-  await putMerchant({ 
+  await putMerchant({
     merchant_id,
     stripe_account_id: merchant_id,
     access_token, // CRITICAL: Save this for API calls
@@ -54,6 +56,22 @@ export async function handler(event:any){
     firebase_uid, // Link to Firebase user
     oauth_connected_at: new Date().toISOString()
   });
+
+  if (firebase_uid) {
+    const now = new Date().toISOString();
+    await ddb.send(new PutCommand({
+      TableName: process.env.MERCHANTS_TABLE!,
+      Item: {
+        pk: `USER#${firebase_uid}`,
+        sk: `MERCHANT#${merchant_id}`,
+        merchant_id,
+        stripe_account_id: merchant_id,
+        firebase_uid,
+        created_at: now,
+        updated_at: now
+      }
+    }));
+  }
   
   // Audit successful OAuth connection
   await createAuditLog({

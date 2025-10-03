@@ -7,13 +7,33 @@ const CASES = process.env.CASES_TABLE!;
 export async function putMerchant(m:any){
   // Use stripe_account_id as the primary key for consistency
   const merchant_id = m.stripe_account_id || m.merchant_id;
+  if (!merchant_id) {
+    throw new Error("putMerchant requires a merchant_id or stripe_account_id");
+  }
+
+  const pk = `MERCHANT#${merchant_id}`;
+
+  // Fetch existing record so we don't blow away previously stored fields
+  let existing: Record<string, any> | undefined;
+  try {
+    const current = await ddb.send(new GetCommand({ TableName: MERCHANTS, Key: { pk } }));
+    existing = current.Item as Record<string, any> | undefined;
+  } catch (error) {
+    console.error('Failed to load existing merchant record', { merchant_id, error });
+  }
+
+  const now = new Date().toISOString();
+
   const item = {
-    pk: `MERCHANT#${merchant_id}`,
-    merchant_id: merchant_id,
-    stripe_account_id: merchant_id, // Ensure both fields are set
+    ...existing,
     ...m,
-    created_at: m.created_at || new Date().toISOString()
+    pk,
+    merchant_id: existing?.merchant_id || merchant_id,
+    stripe_account_id: existing?.stripe_account_id || merchant_id,
+    created_at: existing?.created_at || m.created_at || now,
+    updated_at: now
   };
+
   await ddb.send(new PutCommand({ TableName: MERCHANTS, Item: item }));
 }
 
