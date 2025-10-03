@@ -1,9 +1,20 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import jwt from 'jsonwebtoken';
-import crypto from 'crypto';
+import {
+  applyRateLimit,
+  applySecurityHeaders,
+  buildCorsHeaders,
+  getClientIp,
+  isEmailValid,
+  logSecurityEvent,
+  requireEnv,
+  sanitizeEmail
+} from '../shared/security.js';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'stripedshield-demo-secret-2025';
 const JWT_EXPIRY = '7d'; // 7 days validity
+const loginRateLimitWindowMs = Number(process.env.LOGIN_RATE_LIMIT_WINDOW_MS ?? '60000');
+const loginRateLimitMax = Number(process.env.LOGIN_RATE_LIMIT_MAX ?? '5');
+const allowPasswordlessDemo = process.env.ALLOW_PASSWORDLESS_DEMO_LOGIN === 'true';
 
 interface LoginRequest {
   email: string;
@@ -43,34 +54,88 @@ const DEMO_USERS = [
 
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   const startTime = Date.now();
-  
-  // CORS headers
-  const headers = {
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-    'Access-Control-Allow-Methods': 'POST,OPTIONS'
-  };
 
-  // Handle OPTIONS request for CORS
+  const cors = buildCorsHeaders(event);
+  const baseHeaders: Record<string, string> = applySecurityHeaders({
+    ...cors.headers,
+    'Content-Type': 'application/json'
+  }, {}, { rateLimitLimit: loginRateLimitMax });
+
+  const withRemaining = (remaining: number, overrides: Record<string, string> = {}) =>
+    applySecurityHeaders(baseHeaders, {
+      'X-RateLimit-Remaining': Math.max(remaining, 0).toString(),
+      ...overrides
+    }, { rateLimitLimit: loginRateLimitMax });
+
+  if (!cors.originAllowed) {
+    logSecurityEvent('cors_blocked', {
+      endpoint: 'authLoginHandler',
+      originAttempted: event.headers?.origin || event.headers?.Origin || 'unknown',
+      clientIp: getClientIp(event)
+    });
+
+    return {
+      statusCode: 403,
+      headers: baseHeaders,
+      body: JSON.stringify({
+        success: false,
+        error: 'Origin not allowed'
+      })
+    };
+  }
+
   if (event.httpMethod === 'OPTIONS') {
     return {
-      statusCode: 200,
-      headers,
+      statusCode: 204,
+      headers: baseHeaders,
       body: ''
     };
   }
 
   try {
-    // Parse request body
+    const clientIp = getClientIp(event);
+    const rateResult = applyRateLimit(`auth_login:${clientIp}`, {
+      windowMs: loginRateLimitWindowMs,
+      max: loginRateLimitMax
+    });
+
+    if (!rateResult.allowed) {
+      logSecurityEvent('rate_limit_block', {
+        endpoint: 'authLoginHandler',
+        clientIp,
+        resetTime: new Date(rateResult.resetTime).toISOString()
+      });
+
+      return {
+        statusCode: 429,
+        headers: applySecurityHeaders(baseHeaders, {
+          'Retry-After': Math.ceil((rateResult.resetTime - Date.now()) / 1000).toString(),
+          'X-RateLimit-Remaining': '0'
+        }, { rateLimitLimit: loginRateLimitMax }),
+        body: JSON.stringify({
+          success: false,
+          error: 'Too many login attempts. Please try again later.'
+        })
+      };
+    }
+
     let loginRequest: LoginRequest;
-    
+
     try {
       loginRequest = JSON.parse(event.body || '{}');
+      if (typeof loginRequest !== 'object' || loginRequest === null) {
+        throw new Error('Invalid JSON structure');
+      }
     } catch (error) {
+      logSecurityEvent('invalid_request_body', {
+        endpoint: 'authLoginHandler',
+        clientIp,
+        reason: 'JSON parse failure'
+      });
+
       return {
         statusCode: 400,
-        headers,
+        headers: withRemaining(rateResult.remaining),
         body: JSON.stringify({
           success: false,
           error: 'Invalid request body'
@@ -78,11 +143,10 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       };
     }
 
-    // Validate email
-    if (!loginRequest.email) {
+    if (!loginRequest.email || typeof loginRequest.email !== 'string') {
       return {
         statusCode: 400,
-        headers,
+        headers: withRemaining(rateResult.remaining),
         body: JSON.stringify({
           success: false,
           error: 'Email is required'
@@ -90,66 +154,67 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       };
     }
 
-    // Normalize email
-    const email = loginRequest.email.toLowerCase().trim();
-    
-    // Check for demo users
-    const demoUser = DEMO_USERS.find(u => u.email === email);
-    
-    // For demo purposes, allow access with just email for demo@stripedshield.com
-    // In production, always require password
-    if (email === 'demo@stripedshield.com') {
-      // Generate JWT token
-      const token = jwt.sign(
-        {
-          email: demoUser.email,
-          merchantId: demoUser.merchantId,
-          role: demoUser.role,
-          name: demoUser.name,
-          iat: Math.floor(Date.now() / 1000)
-        },
-        JWT_SECRET,
-        {
-          expiresIn: JWT_EXPIRY
-        }
-      );
-
-      console.log(`Demo login successful for ${email}`);
-
-      const response: LoginResponse = {
-        success: true,
-        token,
-        user: {
-          email: demoUser.email,
-          merchantId: demoUser.merchantId,
-          role: demoUser.role,
-          name: demoUser.name
-        },
-        expiresIn: JWT_EXPIRY
-      };
+    const email = sanitizeEmail(loginRequest.email);
+    if (!isEmailValid(email)) {
+      logSecurityEvent('invalid_email', {
+        endpoint: 'authLoginHandler',
+        clientIp
+      });
 
       return {
-        statusCode: 200,
-        headers,
-        body: JSON.stringify(response)
+        statusCode: 400,
+        headers: withRemaining(rateResult.remaining),
+        body: JSON.stringify({
+          success: false,
+          error: 'Email format is invalid'
+        })
       };
     }
 
-    // For other users, check password
+    const password = typeof loginRequest.password === 'string'
+      ? loginRequest.password.trim()
+      : undefined;
+
+    if (password && password.length > 256) {
+      return {
+        statusCode: 400,
+        headers: withRemaining(rateResult.remaining),
+        body: JSON.stringify({
+          success: false,
+          error: 'Password is too long'
+        })
+      };
+    }
+
+    const jwtSecret = requireEnv('JWT_SECRET');
+
+    const demoUser = DEMO_USERS.find(u => u.email === email);
     if (demoUser) {
-      // Validate password
-      if (!loginRequest.password || loginRequest.password !== demoUser.password) {
-        return {
-          statusCode: 401,
-          headers,
-          body: JSON.stringify({
-            success: false,
-            error: 'Invalid email or password'
-          })
-        };
+      const passwordRequired = email !== 'demo@stripedshield.com' || !allowPasswordlessDemo;
+
+      if (passwordRequired) {
+        if (!password || password !== demoUser.password) {
+          logSecurityEvent('authentication_failure', {
+            endpoint: 'authLoginHandler',
+            clientIp
+          });
+
+          return {
+            statusCode: 401,
+            headers: withRemaining(rateResult.remaining),
+            body: JSON.stringify({
+              success: false,
+              error: 'Invalid email or password'
+            })
+          };
+        }
+      } else if (!password) {
+        logSecurityEvent('demo_passwordless_login', {
+          endpoint: 'authLoginHandler',
+          clientIp
+        });
       }
 
-      // Generate JWT token
       const token = jwt.sign(
         {
           email: demoUser.email,
@@ -158,13 +223,18 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
           name: demoUser.name,
           iat: Math.floor(Date.now() / 1000)
         },
-        JWT_SECRET,
+        jwtSecret,
         {
           expiresIn: JWT_EXPIRY
         }
       );
 
-      console.log(`Login successful for ${email}`);
+      logSecurityEvent('authentication_success', {
+        endpoint: 'authLoginHandler',
+        clientIp,
+        merchantId: demoUser.merchantId,
+        responseTimeMs: Date.now() - startTime
+      });
 
       const response: LoginResponse = {
         success: true,
@@ -180,28 +250,30 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
 
       return {
         statusCode: 200,
-        headers,
+        headers: withRemaining(rateResult.remaining),
         body: JSON.stringify(response)
       };
     }
 
-    // For production, would check against DynamoDB
-    // For now, return error for unknown users
+    logSecurityEvent('authentication_failure', {
+      endpoint: 'authLoginHandler',
+      clientIp
+    });
+
     return {
       statusCode: 401,
-      headers,
+      headers: withRemaining(rateResult.remaining),
       body: JSON.stringify({
         success: false,
         error: 'Invalid email or password'
       })
     };
-
   } catch (error) {
     console.error('Error in auth login handler:', error);
-    
+
     return {
       statusCode: 500,
-      headers,
+      headers: applySecurityHeaders(baseHeaders, {}, { rateLimitLimit: loginRateLimitMax }),
       body: JSON.stringify({
         success: false,
         error: 'Internal server error'
