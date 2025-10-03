@@ -105,12 +105,24 @@ export interface EvidenceFeatures {
 export class FeatureExtractor {
   private stripe: Stripe;
   private cache: Map<string, any>;
-  
-  constructor(stripeSecretKey: string) {
+  private stripeAccount?: string;
+
+  constructor(stripeSecretKey: string, stripeAccount?: string) {
     this.stripe = new Stripe(stripeSecretKey, {
       apiVersion: '2025-07-30.basil',
     });
+    this.stripeAccount = stripeAccount;
     this.cache = new Map();
+  }
+
+  private getRequestOptions(): Stripe.RequestOptions | undefined {
+    if (!this.stripeAccount) {
+      return undefined;
+    }
+
+    return {
+      stripeAccount: this.stripeAccount,
+    };
   }
   
   async extractAllFeatures(
@@ -154,7 +166,11 @@ export class FeatureExtractor {
     }
     
     try {
-      const charge = await this.stripe.charges.retrieve(chargeId);
+      const charge = await this.stripe.charges.retrieve(
+        chargeId,
+        undefined,
+        this.getRequestOptions()
+      );
       this.cache.set(cacheKey, charge);
       return charge;
     } catch (error) {
@@ -170,7 +186,11 @@ export class FeatureExtractor {
     }
     
     try {
-      const pi = await this.stripe.paymentIntents.retrieve(piId);
+      const pi = await this.stripe.paymentIntents.retrieve(
+        piId,
+        undefined,
+        this.getRequestOptions()
+      );
       this.cache.set(cacheKey, pi);
       return pi;
     } catch (error) {
@@ -217,11 +237,18 @@ export class FeatureExtractor {
     
     if (charge?.customer) {
       try {
-        customer = await this.stripe.customers.retrieve(charge.customer as string) as Stripe.Customer;
-        const chargesList = await this.stripe.charges.list({
-          customer: charge.customer as string,
-          limit: 100
-        });
+        customer = await this.stripe.customers.retrieve(
+          charge.customer as string,
+          undefined,
+          this.getRequestOptions()
+        ) as Stripe.Customer;
+        const chargesList = await this.stripe.charges.list(
+          {
+            customer: charge.customer as string,
+            limit: 100
+          },
+          this.getRequestOptions()
+        );
         customerCharges = chargesList.data;
       } catch (error) {
         console.error('Failed to get customer data:', error);
