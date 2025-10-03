@@ -50,7 +50,7 @@ if (process.env.ENABLE_MODEL_UPDATER === 'true') {
   }
 }
 
-const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion: '2025-07-30.basil' });
+const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion: '2025-07-30.basil', maxNetworkRetries: 3 });
 const sfn = new SFNClient({});
 const cloudwatch = new CloudWatch({});
 const WEBHOOK_EVENTS_TABLE = process.env.CASES_TABLE!; // Reuse cases table for webhook events

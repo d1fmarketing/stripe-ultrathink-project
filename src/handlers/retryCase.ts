@@ -5,7 +5,7 @@ import { StartExecutionCommand, SFNClient } from "@aws-sdk/client-sfn";
 import Stripe from 'stripe';
 
 const sfn = new SFNClient({});
-const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion: '2025-07-30.basil' });
+const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion: '2025-07-30.basil', maxNetworkRetries: 3 });
 
 export async function handler(event: any) {
   // REQUIRE AUTHENTICATION

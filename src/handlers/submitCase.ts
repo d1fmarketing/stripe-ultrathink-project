@@ -21,7 +21,7 @@ import {
 import { CE3Detector } from "../ce3-engine/ce3Detector.js";
 import { TimingOptimizer } from "../ai-features/timingOptimizer.js";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion:'2025-07-30.basil' });
+const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion:'2025-07-30.basil', maxNetworkRetries: 3 });
 const cloudwatch = new CloudWatch({});
 
 // Helper to publish metrics

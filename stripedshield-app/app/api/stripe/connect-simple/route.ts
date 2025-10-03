@@ -4,7 +4,8 @@ import Stripe from 'stripe'
 
 export async function GET(req: NextRequest) {
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-    apiVersion: '2025-07-30.basil'
+    apiVersion: '2025-07-30.basil',
+    maxNetworkRetries: 3
   })
 
   try {
@@ -47,7 +48,8 @@ export async function POST(req: NextRequest) {
   const sig = req.headers.get('stripe-signature')!
   
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-    apiVersion: '2025-07-30.basil'
+    apiVersion: '2025-07-30.basil',
+    maxNetworkRetries: 3
   })
 
   try {

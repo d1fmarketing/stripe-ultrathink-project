@@ -4,7 +4,7 @@ import { listCases } from '../shared/db.js';
 import { validationMiddleware, commonSchemas } from '../shared/validation.js';
 import Stripe from 'stripe';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion: '2025-07-30.basil' });
+const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion: '2025-07-30.basil', maxNetworkRetries: 3 });
 
 interface Dispute {
   id: string;

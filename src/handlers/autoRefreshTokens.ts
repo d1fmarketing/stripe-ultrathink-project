@@ -1,6 +1,7 @@
 import { ScanCommand } from "@aws-sdk/lib-dynamodb";
 import { ddb } from "../shared/ddb.js";
 import { putMerchant } from "../shared/db.js";
+import { retryWithExponentialBackoff } from "../shared/retry";
 
 /**
  * Scheduled Lambda to refresh OAuth tokens before they expire
@@ -49,12 +50,19 @@ export async function handler(event: any) {
             client_secret: process.env.STRIPE_SECRET!
           });
           
-          const response = await fetch('https://connect.stripe.com/oauth/token', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body
-          });
-          
+          const response = await retryWithExponentialBackoff(
+            () => fetch('https://connect.stripe.com/oauth/token', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+              body
+            }),
+            { retries: 4, baseDelayMs: 300, maxDelayMs: 4000 }
+          );
+          if (!response.ok) {
+            const message = await response.text().catch(() => response.statusText);
+            throw new Error(`Stripe OAuth refresh failed: ${response.status} ${message}`);
+          }
+
           const json: any = await response.json();
           
           if (json.access_token) {

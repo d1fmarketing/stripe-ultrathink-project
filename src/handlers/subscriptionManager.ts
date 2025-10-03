@@ -4,7 +4,7 @@ import { createAuditLog, AuditAction } from "../shared/auditLog.js";
 import { putMerchant, getCase } from "../shared/db.js";
 import Stripe from 'stripe';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion: '2025-07-30.basil' });
+const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion: '2025-07-30.basil', maxNetworkRetries: 3 });
 
 // Handle subscription lifecycle events
 export async function handleSubscriptionEvent(event: any, subscriptionEvent: any) {

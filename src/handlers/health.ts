@@ -1,7 +1,8 @@
 import { DynamoDBClient, GetItemCommand } from "@aws-sdk/client-dynamodb";
 import { getRedisClient, isRedisReady } from "../cache/redisConnection";
+import { wrapClientSendWithRetry } from "../shared/retry";
 
-const dynamo = new DynamoDBClient({});
+const dynamo = wrapClientSendWithRetry(new DynamoDBClient({}));
 
 const withTimeout = <T>(p: Promise<T>, ms = 350) =>
   Promise.race([

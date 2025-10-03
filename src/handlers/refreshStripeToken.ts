@@ -1,7 +1,7 @@
-import Stripe from 'stripe';
 import { ok, bad } from "../shared/responses.js";
 import { requireAuth } from "../shared/auth.js";
 import { getMerchantByAccount, putMerchant } from "../shared/db.js";
+import { retryWithExponentialBackoff } from "../shared/retry";
 
 /**
  * Refresh Stripe OAuth access token using refresh token
@@ -33,11 +33,18 @@ export async function handler(event: any) {
       client_secret: process.env.STRIPE_SECRET!
     });
     
-    const response = await fetch('https://connect.stripe.com/oauth/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body
-    });
+    const response = await retryWithExponentialBackoff(
+      () => fetch('https://connect.stripe.com/oauth/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body
+      }),
+      { retries: 4, baseDelayMs: 300, maxDelayMs: 4000 }
+    );
+    if (!response.ok) {
+      const message = await response.text().catch(() => response.statusText);
+      throw new Error(`Stripe OAuth refresh failed: ${response.status} ${message}`);
+    }
     
     const json: any = await response.json();
     

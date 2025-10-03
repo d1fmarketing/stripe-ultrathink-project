@@ -1,8 +1,9 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { DynamoDBClient, ScanCommand, QueryCommand } from '@aws-sdk/client-dynamodb';
 import Redis from 'ioredis';
+import { wrapClientSendWithRetry } from '../shared/retry';
 
-const dynamodb = new DynamoDBClient({ region: 'us-east-1' });
+const dynamodb = wrapClientSendWithRetry(new DynamoDBClient({ region: 'us-east-1' }));
 const CASES_TABLE = process.env.CASES_TABLE || 'chargeback-autopilot-stripe-prod-CasesTable-1LPIUKCN82FYI';
 const CACHE_TTL = 300; // 5 minutes cache
 
