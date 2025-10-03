@@ -57,6 +57,7 @@
     "serverless": "^3.39.0",
     "serverless-esbuild": "^1.55.1",
     "serverless-step-functions": "^3.23.3",
+    "ts-jest": "^29.2.5",
     "tsx": "^4.7.2",
     "typescript": "^5.4.5"
   }

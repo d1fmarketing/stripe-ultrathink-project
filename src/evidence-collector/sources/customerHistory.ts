@@ -17,6 +17,8 @@ export interface CustomerHistoryData {
   loyalty_status: 'new' | 'regular' | 'vip';
   risk_profile: 'low' | 'medium' | 'high';
   notes: string[];
+  estimated?: boolean;
+  estimation_details?: string[];
 }
 
 export interface DisputeHistory {
@@ -62,7 +64,7 @@ export class CustomerHistory implements DataSource {
       
       return {
         name: this.name,
-        status: historyData ? 'success' : 'partial',
+        status: historyData ? (historyData.estimated ? 'partial' : 'success') : 'partial',
         data: historyData,
         confidence: this.getConfidence(historyData),
         timestamp: new Date()
@@ -178,57 +180,123 @@ export class CustomerHistory implements DataSource {
       service_usage: serviceUsage,
       loyalty_status: loyaltyStatus,
       risk_profile: riskProfile,
-      notes: this.generateCustomerNotes(customer, charges, disputes)
+      notes: this.generateCustomerNotes(customer, charges, disputes),
+      estimated: false
     };
   }
-  
+
   private generateEstimatedHistory(
     dispute: Stripe.Dispute,
     charge?: Stripe.Charge
   ): CustomerHistoryData {
-    const chargeDate = charge ? new Date(charge.created * 1000) : new Date();
-    const estimatedAccountAge = Math.floor(Math.random() * 365) + 30; // 30-395 days
-    const accountCreated = new Date(chargeDate.getTime() - (estimatedAccountAge * 86400000));
-    
+    const secondsPerDay = 86400;
+    const referenceChargeCreated = charge?.created ?? dispute.created;
+    const chargeDate = new Date(referenceChargeCreated * 1000);
+    const disputeDate = new Date(dispute.created * 1000);
+
+    const amountCents = charge?.amount ?? dispute.amount ?? 0;
+    const normalizedAmount = amountCents > 0 ? amountCents / 100 : 0;
+
+    const chargeToDisputeGapDays = Math.max(
+      0,
+      Math.floor((dispute.created - referenceChargeCreated) / secondsPerDay)
+    );
+
+    const estimatedAccountAge = Math.min(
+      730,
+      Math.max(30, chargeToDisputeGapDays + 90)
+    );
+
+    const accountCreatedTimestamp = Math.max(
+      0,
+      referenceChargeCreated - estimatedAccountAge * secondsPerDay
+    );
+    const accountCreated = new Date(accountCreatedTimestamp * 1000);
+
+    const baseTransactionEstimate = normalizedAmount > 0
+      ? Math.min(50, Math.max(1, Math.round(normalizedAmount / 200)))
+      : 3;
+    const loyaltyBonus = estimatedAccountAge > 365 ? 4 : estimatedAccountAge > 180 ? 2 : 1;
+    const totalTransactions = Math.max(1, baseTransactionEstimate + loyaltyBonus);
+    const successfulTransactions = Math.max(
+      1,
+      Math.min(totalTransactions, totalTransactions - (estimatedAccountAge > 120 ? 1 : 0))
+    );
+
+    const averageChargeAmount = normalizedAmount > 0 ? normalizedAmount : 75;
+    const totalSpent = Math.round(successfulTransactions * averageChargeAmount * 100) / 100;
+    const averageOrderValue = Math.round((totalSpent / successfulTransactions) * 100) / 100;
+
+    const estimatedDisputes = Math.min(
+      totalTransactions,
+      Math.max(1, Math.round(totalTransactions * 0.1))
+    );
+    const wonDisputes = estimatedDisputes > 1 ? 1 : 0;
+    const pendingDisputes = Math.max(0, estimatedDisputes - wonDisputes - 1);
+    const lostDisputes = Math.max(0, estimatedDisputes - wonDisputes - pendingDisputes);
+
+    const disputeHistory: DisputeHistory = {
+      total_disputes: estimatedDisputes,
+      won_disputes: wonDisputes,
+      lost_disputes: lostDisputes,
+      pending_disputes: pendingDisputes,
+      dispute_rate: totalTransactions > 0 ? estimatedDisputes / totalTransactions : 0,
+      last_dispute_date: disputeDate
+    };
+
+    const serviceUsage: ServiceUsage = {
+      login_count: Math.max(1, successfulTransactions * 2),
+      last_login: chargeDate,
+      features_used: amountCents > 5000 ? ['checkout', 'account', 'subscriptions'] : ['checkout'],
+      subscription_tier: amountCents > 20000 ? 'premium' : null,
+      api_calls: successfulTransactions * 5,
+      support_tickets: Math.max(0, estimatedDisputes - wonDisputes),
+      satisfaction_score: null
+    };
+
+    const loyalty_status: 'new' | 'regular' | 'vip' = estimatedAccountAge > 540
+      ? 'vip'
+      : estimatedAccountAge > 180
+        ? 'regular'
+        : 'new';
+
+    const risk_profile = this.calculateRiskProfile(disputeHistory, estimatedAccountAge, totalSpent);
+
+    const estimationDetails = [
+      'Derived from dispute timing and charge amount heuristics',
+      `Charge reference date: ${chargeDate.toISOString()}`,
+      `Account age heuristic: ${estimatedAccountAge} days`
+    ];
+
     return {
       customer_id: '[ESTIMATED]',
       account_created: accountCreated,
       account_age_days: estimatedAccountAge,
-      total_transactions: Math.floor(Math.random() * 10) + 1,
-      successful_transactions: Math.floor(Math.random() * 10) + 1,
-      total_spent: (charge?.amount || 0) * (Math.floor(Math.random() * 5) + 1),
-      average_order_value: charge?.amount || 0,
+      total_transactions: totalTransactions,
+      successful_transactions: successfulTransactions,
+      total_spent: totalSpent,
+      average_order_value: averageOrderValue,
       last_transaction_date: chargeDate,
-      dispute_history: {
-        total_disputes: 1,
-        won_disputes: 0,
-        lost_disputes: 0,
-        pending_disputes: 1,
-        dispute_rate: 0.1,
-        last_dispute_date: new Date()
-      },
+      dispute_history: disputeHistory,
       payment_methods: [{
         type: 'card',
         last4: charge?.payment_method_details?.card?.last4 || '****',
         brand: charge?.payment_method_details?.card?.brand || 'unknown',
         country: charge?.payment_method_details?.card?.country || 'US',
-        exp_month: 12,
-        exp_year: 2025,
-        uses_count: 1
+        exp_month: charge?.payment_method_details?.card?.exp_month || 12,
+        exp_year: charge?.payment_method_details?.card?.exp_year || chargeDate.getUTCFullYear() + 1,
+        uses_count: successfulTransactions
       }],
       shipping_addresses: charge?.shipping ? [this.formatAddress(charge.shipping.address)] : [],
-      service_usage: {
-        login_count: Math.floor(Math.random() * 50) + 1,
-        last_login: chargeDate,
-        features_used: ['checkout', 'account'],
-        subscription_tier: null,
-        api_calls: 0,
-        support_tickets: 0,
-        satisfaction_score: null
-      },
-      loyalty_status: estimatedAccountAge > 180 ? 'regular' : 'new',
-      risk_profile: 'medium',
-      notes: ['[ESTIMATED] Customer history based on available transaction data']
+      service_usage: serviceUsage,
+      loyalty_status,
+      risk_profile,
+      notes: [
+        '[ESTIMATED] Customer history inferred from dispute context',
+        `[ESTIMATED] Total transactions approximated to ${totalTransactions}`
+      ],
+      estimated: true,
+      estimation_details: estimationDetails
     };
   }
   
@@ -379,9 +447,13 @@ export class CustomerHistory implements DataSource {
   
   getConfidence(data: any): number {
     if (!data) return 0;
-    
+
+    if (data.estimated) {
+      return 0.2;
+    }
+
     let confidence = 0.5;
-    
+
     if (data.customer_id && !data.customer_id.includes('ESTIMATED')) {
       confidence = 0.8;
       
