@@ -11,6 +11,7 @@ export interface EvidencePackage {
   narrative: string;
   estimatedFields: EstimatedField[];
   submissionReady: boolean;
+  fraudWarning?: boolean;
 }
 
 export interface SupportingDocument {
@@ -84,7 +85,8 @@ export class EvidenceBundler {
       supportingDocuments,
       narrative,
       estimatedFields,
-      submissionReady: this.isSubmissionReady(evidence, dispute.reason)
+      submissionReady: this.isSubmissionReady(evidence, dispute.reason),
+      fraudWarning: false
     };
   }
 
