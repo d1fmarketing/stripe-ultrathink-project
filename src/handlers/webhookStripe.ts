@@ -13,7 +13,7 @@ import {
 } from '../ai';
 import { CloudWatch, StandardUnit } from '@aws-sdk/client-cloudwatch';
 import { ddb } from "../shared/ddb.js";
-import { PutCommand, GetCommand } from "@aws-sdk/lib-dynamodb";
+import { PutCommand, GetCommand, QueryCommand, DeleteCommand } from "@aws-sdk/lib-dynamodb";
 import { FeatureExtractor } from '../ml-predictor/featureExtractor';
 import { FeedbackLoop } from '../ml/feedbackLoop';
 
@@ -54,6 +54,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion: '2025-07-30.
 const sfn = new SFNClient({});
 const cloudwatch = new CloudWatch({});
 const WEBHOOK_EVENTS_TABLE = process.env.CASES_TABLE!; // Reuse cases table for webhook events
+const PLATFORM_MERCHANT_ID = process.env.PLATFORM_MERCHANT_ID;
 
 // Helper to publish metrics
 async function publishMetric(name: string, value: number, unit: string = 'Count') {
@@ -108,11 +109,48 @@ async function markEventProcessed(eventId: string, eventType: string): Promise<v
   }
 }
 
+async function cleanupUndefinedMerchantCases(): Promise<void> {
+  try {
+    const result = await ddb.send(new QueryCommand({
+      TableName: process.env.CASES_TABLE!,
+      KeyConditionExpression: 'pk = :pk',
+      ExpressionAttributeValues: {
+        ':pk': 'MERCHANT#undefined'
+      }
+    }));
+
+    const items = result.Items || [];
+    if (items.length === 0) {
+      return;
+    }
+
+    console.warn(`Found ${items.length} MERCHANT#undefined records. Cleaning up.`);
+
+    await Promise.all(
+      items
+        .filter((item: any) => item?.pk && item?.sk)
+        .map((item: any) =>
+          ddb.send(
+            new DeleteCommand({
+              TableName: process.env.CASES_TABLE!,
+              Key: {
+                pk: item.pk,
+                sk: item.sk
+              }
+            })
+          )
+        )
+    );
+  } catch (error) {
+    console.error('Failed to cleanup MERCHANT#undefined cases:', error);
+  }
+}
+
 export async function handler(event:any){
   const sig = event.headers['stripe-signature'] || event.headers['Stripe-Signature'];
   const rawBody = event.body;
   const account = (event.headers['stripe-account'] || event.headers['Stripe-Account']) as string | undefined;
-  
+
   // Get the webhook secret from environment variable
   // For production, use different secrets for account vs platform webhooks
   const webhookSecret = account 
@@ -139,6 +177,26 @@ export async function handler(event:any){
 
   // Extract account from event if not in headers
   const eventAccount = account || (evt as any).account;
+  const resolvedAccount = eventAccount || PLATFORM_MERCHANT_ID;
+
+  if (!eventAccount) {
+    if (PLATFORM_MERCHANT_ID) {
+      console.warn(
+        `Webhook event ${evt.id} missing Stripe account header. Falling back to platform merchant ID.`
+      );
+      await cleanupUndefinedMerchantCases();
+    } else {
+      console.error(`Webhook event ${evt.id} is missing a Stripe account ID. Unable to process merchant-specific logic.`);
+      await publishMetric('missing_account_id', 1);
+      await cleanupUndefinedMerchantCases();
+    }
+  }
+
+  if (!resolvedAccount) {
+    console.error(`No valid merchant ID available for event ${evt.id}. Skipping case upsert.`);
+    await cleanupUndefinedMerchantCases();
+    return { statusCode: 400, body: 'missing merchant context' };
+  }
 
   // Handle checkout session completed (for subscriptions)
   if(evt.type === 'checkout.session.completed'){
@@ -350,7 +408,7 @@ export async function handler(event:any){
     }
     
     // Store case with AI analysis
-    await upsertCase(eventAccount!, dispute, {
+    await upsertCase(resolvedAccount, dispute, {
       aiAnalysis: aiAnalysis ? {
         weaknesses: aiAnalysis.weaknesses,
         bestEvidence: aiAnalysis.bestEvidence,
@@ -366,7 +424,7 @@ export async function handler(event:any){
     if(evt.type === 'charge.dispute.created'){
       // Include AI analysis in Step Functions input
       const sfnInput = {
-        merchant: { stripe_account_id: eventAccount },
+        merchant: { stripe_account_id: resolvedAccount },
         dispute_id: dispute.id,
         aiAnalysis,
         riskLevel
@@ -394,7 +452,7 @@ export async function handler(event:any){
         const caseData = await ddb.send(new GetCommand({
           TableName: process.env.CASES_TABLE!,
           Key: {
-            pk: `MERCHANT#${eventAccount}`,
+            pk: `MERCHANT#${resolvedAccount}`,
             sk: `DISPUTE#${dispute.id}`
           }
         }));
