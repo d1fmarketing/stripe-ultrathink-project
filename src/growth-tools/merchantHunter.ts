@@ -50,6 +50,7 @@ export class MerchantHunter {
   constructor(stripeSecretKey: string) {
     this.stripe = new Stripe(stripeSecretKey, {
       apiVersion: '2025-07-30.basil',
+      maxNetworkRetries: 3
     });
     
     this.strategies = this.initializeStrategies();

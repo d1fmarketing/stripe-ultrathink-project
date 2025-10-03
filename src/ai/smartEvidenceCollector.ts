@@ -2,6 +2,7 @@ import Stripe from 'stripe';
 import { z } from 'zod';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, GetCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
+import { wrapClientSendWithRetry } from '../shared/retry';
 
 // Initialize Stripe client lazily
 let stripe: Stripe | null = null;
@@ -11,16 +12,17 @@ function getStripeClient(): Stripe {
     if (!key || key.includes('placeholder')) {
       throw new Error('Valid Stripe secret key required. Set STRIPE_SECRET environment variable.');
     }
-    stripe = new Stripe(key, { 
-      apiVersion: '2024-06-20' as Stripe.LatestApiVersion 
+    stripe = new Stripe(key, {
+      apiVersion: '2024-06-20' as Stripe.LatestApiVersion,
+      maxNetworkRetries: 3
     });
   }
   return stripe;
 }
 
 // Initialize DynamoDB client
-const dynamoClient = new DynamoDBClient({ region: process.env.AWS_REGION || 'us-east-1' });
-const docClient = DynamoDBDocumentClient.from(dynamoClient);
+const dynamoClient = wrapClientSendWithRetry(new DynamoDBClient({ region: process.env.AWS_REGION || 'us-east-1' }));
+const docClient = wrapClientSendWithRetry(DynamoDBDocumentClient.from(dynamoClient));
 
 // Evidence bundle schema
 export const EvidenceBundleSchema = z.object({

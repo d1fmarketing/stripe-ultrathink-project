@@ -1,5 +1,5 @@
 import Stripe from 'stripe';
-const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion:'2025-07-30.basil' });
+const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion:'2025-07-30.basil', maxNetworkRetries: 3 });
 
 export async function handler(evt:any){
   // Safely extract stripe_account_id with proper error handling

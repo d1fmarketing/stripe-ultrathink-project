@@ -1,8 +1,10 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, ScanCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
 import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses";
+import { wrapClientSendWithRetry } from "../shared/retry";
 
-const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
+const dynamoClient = wrapClientSendWithRetry(new DynamoDBClient({}));
+const ddb = wrapClientSendWithRetry(DynamoDBDocumentClient.from(dynamoClient));
 const ses = new SESClient({});
 
 const MERCHANTS = process.env.MERCHANTS_TABLE!;

@@ -1,6 +1,7 @@
 import { putMerchant } from "../shared/db.js";
 import Stripe from 'stripe';
 import { createAuditLog, AuditAction, auditFailure } from "../shared/auditLog.js";
+import { retryWithExponentialBackoff } from "../shared/retry";
 
 export async function handler(event:any){
   const qs = event.queryStringParameters || {};
@@ -15,9 +16,16 @@ export async function handler(event:any){
     code, grant_type: 'authorization_code'
   });
 
-  const r = await fetch('https://connect.stripe.com/oauth/token', {
-    method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body
-  });
+  const r = await retryWithExponentialBackoff(
+    () => fetch('https://connect.stripe.com/oauth/token', {
+      method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body
+    }),
+    { retries: 4, baseDelayMs: 300, maxDelayMs: 4000 }
+  );
+  if (!r.ok) {
+    const message = await r.text().catch(() => r.statusText);
+    throw new Error(`Stripe OAuth exchange failed: ${r.status} ${message}`);
+  }
   const json:any = await r.json();
   if(!json.stripe_user_id) return { statusCode:400, body:`oauth failed: ${JSON.stringify(json)}` };
 
@@ -73,7 +81,7 @@ export async function handler(event:any){
 
   // Register webhook endpoint for this connected account
   try {
-    const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion: '2025-07-30.basil' });
+    const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion: '2025-07-30.basil', maxNetworkRetries: 3 });
     const webhookEndpoint = await stripe.webhookEndpoints.create({
       url: 'https://ket0g0lurh.execute-api.us-east-1.amazonaws.com/webhooks/stripe',
       enabled_events: [

@@ -1,9 +1,10 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, GetCommand } from '@aws-sdk/lib-dynamodb';
 import { SSMClient, GetParameterCommand } from '@aws-sdk/client-ssm';
+import { wrapClientSendWithRetry } from './retry';
 
-const client = new DynamoDBClient({});
-const ddb = DynamoDBDocumentClient.from(client);
+const client = wrapClientSendWithRetry(new DynamoDBClient({}));
+const ddb = wrapClientSendWithRetry(DynamoDBDocumentClient.from(client));
 const ssm = new SSMClient({});
 
 const MERCHANTS_TABLE = process.env.MERCHANTS_TABLE || 'MerchantsTable';
@@ -83,7 +84,7 @@ export async function validateWebhookSignature(
   accountId?: string
 ): Promise<boolean> {
   const Stripe = require('stripe');
-  const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion: '2025-07-30.basil' });
+  const stripe = new Stripe(process.env.STRIPE_SECRET!, { apiVersion: '2025-07-30.basil', maxNetworkRetries: 3 });
   
   try {
     // Get the appropriate webhook secret

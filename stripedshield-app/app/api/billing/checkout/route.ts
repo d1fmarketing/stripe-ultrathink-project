@@ -11,8 +11,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
     
-    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { 
-      apiVersion: '2025-07-30.basil' 
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+      apiVersion: '2025-07-30.basil',
+      maxNetworkRetries: 3
     })
     
     // Get price ID from request or use default founder price
