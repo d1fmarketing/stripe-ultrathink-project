@@ -25,16 +25,47 @@ export async function getMerchantByAccount(stripe_account_id:string){
 
 export async function upsertCase(merchantId:string, dispute:any, extras:any={}){
   const now = Math.floor(Date.now()/1000);
+
+  const {
+    customer_id = null,
+    order_id = null,
+    shipping_address = null,
+    refunded = false,
+    refund_timestamps = [],
+    dispute_status = dispute.status,
+    payment_intent_id: extrasPaymentIntentId,
+    ...restExtras
+  } = extras || {};
+
+  const normalizedPaymentIntentId = extrasPaymentIntentId
+    ?? (typeof dispute.payment_intent === 'string'
+      ? dispute.payment_intent
+      : (dispute.payment_intent && typeof dispute.payment_intent.id === 'string'
+        ? dispute.payment_intent.id
+        : null));
+
+  const normalizedRefundTimestamps = Array.isArray(refund_timestamps)
+    ? refund_timestamps
+    : refund_timestamps
+      ? [refund_timestamps]
+      : [];
+
   const item = {
     pk: `MERCHANT#${merchantId}`,
     sk: `CASE#${dispute.id}`,
     dispute_id: dispute.id,
-    charge_id: dispute.charge,
-    payment_intent_id: dispute.payment_intent,
+    charge_id: typeof dispute.charge === 'string' ? dispute.charge : dispute.charge?.id || null,
+    payment_intent_id: normalizedPaymentIntentId,
     amount_cents: dispute.amount,
     currency: dispute.currency,
     reason: dispute.reason,
     status: dispute.status,
+    dispute_status,
+    customer_id,
+    order_id,
+    shipping_address,
+    refunded,
+    refund_timestamps: normalizedRefundTimestamps,
     created_at_epoch: dispute.created || now,
     updated_at_epoch: now,
     result_at_epoch: (['won','lost'].includes(dispute.status) ? now : undefined),
@@ -43,7 +74,7 @@ export async function upsertCase(merchantId:string, dispute:any, extras:any={}){
     gsi1_sk: dispute.evidence_details?.due_by || 0,
     gsi2_pk: `STATUS#${dispute.status}`,
     gsi2_sk: dispute.evidence_details?.due_by || 0,
-    ...extras
+    ...restExtras
   };
   await ddb.send(new PutCommand({ TableName: CASES, Item: item }));
   return item;
