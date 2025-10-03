@@ -1,4 +1,6 @@
 import Stripe from 'stripe';
+import { GetCommand } from '@aws-sdk/lib-dynamodb';
+import { ddb } from '../shared/ddb';
 
 export interface DisputeFeatures {
   basic: BasicFeatures;
@@ -260,9 +262,15 @@ export class FeatureExtractor {
     };
   }
   
-  private extractMerchantFeatures(dispute: Stripe.Dispute): MerchantFeatures {
-    return {
-      merchantId: 'default',
+  private async extractMerchantFeatures(dispute: Stripe.Dispute): Promise<MerchantFeatures> {
+    const merchantId = ((dispute as any).account as string) || (dispute.metadata as any)?.merchant_id || 'default';
+    const cacheKey = `merchant:${merchantId}`;
+    if (this.cache.has(cacheKey)) {
+      return this.cache.get(cacheKey);
+    }
+
+    const defaults: MerchantFeatures = {
+      merchantId,
       merchantCategory: 'general',
       merchantCountry: 'US',
       averageTicketSize: 5000,
@@ -271,6 +279,44 @@ export class FeatureExtractor {
       winRate: 0.45,
       averageResponseTime: 72
     };
+
+    const tableName = process.env.MERCHANT_SUMMARY_TABLE || process.env.MERCHANTS_TABLE || 'MerchantsTable';
+
+    if (merchantId === 'default') {
+      this.cache.set(cacheKey, defaults);
+      return defaults;
+    }
+
+    try {
+      const response = await ddb.send(new GetCommand({
+        TableName: tableName,
+        Key: { pk: `MERCHANT#${merchantId}` }
+      }));
+
+      const record = response.Item || {};
+      const metrics = record.metrics || record.analytics || record;
+
+      if (metrics && Object.keys(metrics).length > 0) {
+        const features: MerchantFeatures = {
+          merchantId,
+          merchantCategory: metrics.merchantCategory || metrics.merchant_category || record.merchantCategory || record.merchant_category || 'general',
+          merchantCountry: metrics.merchantCountry || metrics.merchant_country || record.merchantCountry || record.merchant_country || 'US',
+          averageTicketSize: Number(metrics.averageTicketSize ?? metrics.average_ticket_size ?? metrics.avg_ticket ?? record.averageTicketSize ?? record.average_ticket_size ?? 5000),
+          monthlyVolume: Number(metrics.monthlyVolume ?? metrics.monthly_volume ?? metrics.volume_30d ?? record.monthlyVolume ?? record.monthly_volume ?? 100000),
+          disputeRate: Number(metrics.disputeRate ?? metrics.dispute_rate ?? metrics.dispute_rate_30d ?? record.disputeRate ?? record.dispute_rate ?? 0.01),
+          winRate: Number(metrics.winRate ?? metrics.win_rate ?? metrics.win_rate_90d ?? record.winRate ?? record.win_rate ?? 0.45),
+          averageResponseTime: Number(metrics.averageResponseTime ?? metrics.average_response_time ?? metrics.avg_response_hours ?? record.averageResponseTime ?? record.average_response_time ?? 72)
+        };
+
+        this.cache.set(cacheKey, features);
+        return features;
+      }
+    } catch (error) {
+      console.error(`Failed to fetch merchant metrics for ${merchantId}:`, error);
+    }
+
+    this.cache.set(cacheKey, defaults);
+    return defaults;
   }
   
   private extractBehavioralFeatures(
