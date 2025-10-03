@@ -105,12 +105,14 @@ export interface EvidenceFeatures {
 export class FeatureExtractor {
   private stripe: Stripe;
   private cache: Map<string, any>;
-  
-  constructor(stripeSecretKey: string) {
+  private stripeAccount?: string;
+
+  constructor(stripeSecretKey: string, stripeAccount?: string) {
     this.stripe = new Stripe(stripeSecretKey, {
       apiVersion: '2025-07-30.basil',
     });
     this.cache = new Map();
+    this.stripeAccount = stripeAccount;
   }
   
   async extractAllFeatures(
@@ -152,9 +154,11 @@ export class FeatureExtractor {
     if (this.cache.has(cacheKey)) {
       return this.cache.get(cacheKey);
     }
-    
+
     try {
-      const charge = await this.stripe.charges.retrieve(chargeId);
+      const charge = this.stripeAccount
+        ? await this.stripe.charges.retrieve(chargeId, undefined, { stripeAccount: this.stripeAccount })
+        : await this.stripe.charges.retrieve(chargeId);
       this.cache.set(cacheKey, charge);
       return charge;
     } catch (error) {
@@ -162,15 +166,17 @@ export class FeatureExtractor {
       return undefined;
     }
   }
-  
+
   private async getPaymentIntent(piId: string): Promise<Stripe.PaymentIntent | undefined> {
     const cacheKey = `pi:${piId}`;
     if (this.cache.has(cacheKey)) {
       return this.cache.get(cacheKey);
     }
-    
+
     try {
-      const pi = await this.stripe.paymentIntents.retrieve(piId);
+      const pi = this.stripeAccount
+        ? await this.stripe.paymentIntents.retrieve(piId, undefined, { stripeAccount: this.stripeAccount })
+        : await this.stripe.paymentIntents.retrieve(piId);
       this.cache.set(cacheKey, pi);
       return pi;
     } catch (error) {

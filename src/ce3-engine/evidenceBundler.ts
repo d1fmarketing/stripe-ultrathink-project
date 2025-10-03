@@ -11,6 +11,7 @@ export interface EvidencePackage {
   narrative: string;
   estimatedFields: EstimatedField[];
   submissionReady: boolean;
+  fraudWarning?: boolean;
 }
 
 export interface SupportingDocument {
