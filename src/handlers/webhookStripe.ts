@@ -304,7 +304,58 @@ export async function handler(event:any){
 
   if(evt.type === 'charge.dispute.created' || evt.type === 'charge.dispute.updated'){
     const dispute = evt.data.object as Stripe.Dispute;
-    
+
+    const requestOptions = eventAccount ? { stripeAccount: eventAccount } : undefined;
+    let charge: Stripe.Charge | null = null;
+    let paymentIntent: Stripe.PaymentIntent | null = null;
+    let customerId: string | null = null;
+
+    if (typeof dispute.charge === 'string') {
+      try {
+        charge = await stripe.charges.retrieve(dispute.charge as string, undefined, requestOptions);
+        const chargeCustomer = charge.customer as Stripe.Customer | string | null | undefined;
+        if (typeof chargeCustomer === 'string') {
+          customerId = chargeCustomer;
+        } else if (chargeCustomer) {
+          customerId = chargeCustomer.id;
+        }
+        if (!paymentIntent && typeof charge.payment_intent === 'string') {
+          try {
+            paymentIntent = await stripe.paymentIntents.retrieve(charge.payment_intent, undefined, requestOptions);
+          } catch (error) {
+            console.error('Failed to retrieve payment intent from charge context:', error);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to retrieve charge for dispute:', error);
+      }
+    }
+
+    if (!customerId && typeof (dispute as any).customer === 'string') {
+      customerId = (dispute as any).customer;
+    }
+
+    if (!customerId && typeof dispute.payment_intent === 'string') {
+      try {
+        paymentIntent = paymentIntent || await stripe.paymentIntents.retrieve(dispute.payment_intent as string, undefined, requestOptions);
+        const piCustomer = paymentIntent.customer as Stripe.Customer | string | null | undefined;
+        if (typeof piCustomer === 'string') {
+          customerId = piCustomer;
+        } else if (piCustomer) {
+          customerId = piCustomer.id;
+        }
+        if (!charge && typeof paymentIntent.latest_charge === 'string') {
+          try {
+            charge = await stripe.charges.retrieve(paymentIntent.latest_charge, undefined, requestOptions);
+          } catch (error) {
+            console.error('Failed to retrieve latest charge from payment intent:', error);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to retrieve payment intent for dispute:', error);
+      }
+    }
+
     // Initialize AI analysis
     let aiAnalysis: DisputeAnalysis | null = null;
     let riskLevel = 'medium';
@@ -314,32 +365,41 @@ export async function handler(event:any){
       // Analyze dispute with new AI module when created
       if(evt.type === 'charge.dispute.created'){
         try {
-          // Get charge data for analysis
-          const charge = await stripe.charges.retrieve(dispute.charge as string, { stripeAccount: eventAccount });
-          
           // Quick risk assessment first
           riskLevel = quickAssessRisk(dispute);
+
+          if (!charge && typeof dispute.charge === 'string') {
+            try {
+              charge = await stripe.charges.retrieve(dispute.charge as string, undefined, requestOptions);
+            } catch (error) {
+              console.error('Failed to retrieve charge for AI analysis:', error);
+            }
+          }
+
+          if (charge) {
+            // Full AI analysis with REAL merchant win rate
+            const merchantWinRate = eventAccount ? await getMerchantWinRate(eventAccount) : 0.5;
+            aiAnalysis = await analyzeDispute({
+              dispute,
+              charge,
+              merchantWinRate // REAL data from database
+            });
+          }
           
-          // Full AI analysis with REAL merchant win rate
-          const merchantWinRate = eventAccount ? await getMerchantWinRate(eventAccount) : 0.5;
-          aiAnalysis = await analyzeDispute({
-            dispute,
-            charge,
-            merchantWinRate // REAL data from database
-          });
-          
-          console.log('[AI] Dispute Analysis:', {
-            disputeId: dispute.id,
-            weaknesses: aiAnalysis.weaknesses.length,
-            bestEvidence: aiAnalysis.bestEvidence.length,
-            riskLevel: aiAnalysis.riskLevel,
-            estimatedWinProbability: aiAnalysis.estimatedWinProbability
-          });
-          
-          // Publish metrics
-          await publishMetric('ai_analyzed', 1);
-          if (aiAnalysis.estimatedWinProbability) {
-            await publishMetric('ai_win_probability', aiAnalysis.estimatedWinProbability * 100, 'Percent');
+          if (aiAnalysis) {
+            console.log('[AI] Dispute Analysis:', {
+              disputeId: dispute.id,
+              weaknesses: aiAnalysis.weaknesses.length,
+              bestEvidence: aiAnalysis.bestEvidence.length,
+              riskLevel: aiAnalysis.riskLevel,
+              estimatedWinProbability: aiAnalysis.estimatedWinProbability
+            });
+
+            // Publish metrics
+            await publishMetric('ai_analyzed', 1);
+            if (aiAnalysis.estimatedWinProbability) {
+              await publishMetric('ai_win_probability', aiAnalysis.estimatedWinProbability * 100, 'Percent');
+            }
           }
           
         } catch (error) {
@@ -360,7 +420,8 @@ export async function handler(event:any){
         recommendedActions: aiAnalysis.recommendedActions
       } : null,
       riskLevel,
-      aiEnhanced: !!aiAnalysis
+      aiEnhanced: !!aiAnalysis,
+      customer_id: customerId
     });
     
     if(evt.type === 'charge.dispute.created'){

@@ -25,12 +25,19 @@ export async function getMerchantByAccount(stripe_account_id:string){
 
 export async function upsertCase(merchantId:string, dispute:any, extras:any={}){
   const now = Math.floor(Date.now()/1000);
+  const { customer_id: providedCustomerId, ...restExtras } = extras || {};
+  const disputeCustomer = typeof dispute.customer === 'string'
+    ? dispute.customer
+    : dispute.customer?.id;
+  const customer_id = providedCustomerId ?? disputeCustomer ?? null;
+
   const item = {
     pk: `MERCHANT#${merchantId}`,
     sk: `CASE#${dispute.id}`,
     dispute_id: dispute.id,
     charge_id: dispute.charge,
     payment_intent_id: dispute.payment_intent,
+    customer_id,
     amount_cents: dispute.amount,
     currency: dispute.currency,
     reason: dispute.reason,
@@ -43,7 +50,7 @@ export async function upsertCase(merchantId:string, dispute:any, extras:any={}){
     gsi1_sk: dispute.evidence_details?.due_by || 0,
     gsi2_pk: `STATUS#${dispute.status}`,
     gsi2_sk: dispute.evidence_details?.due_by || 0,
-    ...extras
+    ...restExtras
   };
   await ddb.send(new PutCommand({ TableName: CASES, Item: item }));
   return item;
