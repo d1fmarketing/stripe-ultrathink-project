@@ -12,23 +12,35 @@ export async function handler(event: any) {
   
   try {
     // Scan for all merchants with OAuth tokens
-    const scanResult = await ddb.send(new ScanCommand({
-      TableName: MERCHANTS_TABLE,
-      FilterExpression: 'attribute_exists(access_token) AND attribute_exists(refresh_token)'
-    }));
-    
-    const merchants = scanResult.Items || [];
-    console.log(`Found ${merchants.length} merchants with OAuth tokens`);
-    
+    const merchants: any[] = [];
+    let lastEvaluatedKey: Record<string, any> | undefined;
+
+    do {
+      const scanResult = await ddb.send(new ScanCommand({
+        TableName: MERCHANTS_TABLE,
+        FilterExpression: 'attribute_exists(access_token) AND attribute_exists(refresh_token)',
+        ProjectionExpression: 'pk, merchant_id, stripe_account_id, access_token, refresh_token, token_refreshed_at, oauth_connected_at',
+        ExclusiveStartKey: lastEvaluatedKey
+      }));
+
+      merchants.push(...(scanResult.Items || []));
+      lastEvaluatedKey = scanResult.LastEvaluatedKey;
+    } while (lastEvaluatedKey);
+
+    const uniqueMerchants = merchants.filter((item, index, arr) =>
+      arr.findIndex(other => other.pk === item.pk) === index
+    );
+    console.log(`Found ${uniqueMerchants.length} merchants with OAuth tokens`);
+
     const results = {
-      checked: merchants.length,
+      checked: uniqueMerchants.length,
       refreshed: 0,
       failed: 0,
       errors: [] as string[]
     };
-    
+
     // Check each merchant
-    for (const merchant of merchants) {
+    for (const merchant of uniqueMerchants) {
       try {
         // Check if token needs refresh
         const lastRefresh = merchant.token_refreshed_at || merchant.oauth_connected_at;

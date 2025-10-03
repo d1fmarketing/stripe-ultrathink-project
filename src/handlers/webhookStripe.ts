@@ -304,11 +304,14 @@ export async function handler(event:any){
 
   if(evt.type === 'charge.dispute.created' || evt.type === 'charge.dispute.updated'){
     const dispute = evt.data.object as Stripe.Dispute;
-    
+    let chargeCustomerId: string | undefined;
+    let chargeOrderId: string | undefined;
+    let chargeRefunded: boolean | undefined;
+
     // Initialize AI analysis
     let aiAnalysis: DisputeAnalysis | null = null;
     let riskLevel = 'medium';
-    
+
     // Only run AI if enabled via feature flag
     if (process.env.AI_ENABLED === 'true' && isAIEnabled()) {
       // Analyze dispute with new AI module when created
@@ -316,7 +319,12 @@ export async function handler(event:any){
         try {
           // Get charge data for analysis
           const charge = await stripe.charges.retrieve(dispute.charge as string, { stripeAccount: eventAccount });
-          
+          chargeCustomerId = typeof charge.customer === 'string'
+            ? charge.customer
+            : (charge.customer as Stripe.Customer)?.id;
+          chargeOrderId = typeof charge.metadata?.order_id === 'string' ? charge.metadata.order_id : undefined;
+          chargeRefunded = Boolean(charge.refunded);
+
           // Quick risk assessment first
           riskLevel = quickAssessRisk(dispute);
           
@@ -348,7 +356,7 @@ export async function handler(event:any){
         }
       }
     }
-    
+
     // Store case with AI analysis
     await upsertCase(eventAccount!, dispute, {
       aiAnalysis: aiAnalysis ? {
@@ -360,7 +368,10 @@ export async function handler(event:any){
         recommendedActions: aiAnalysis.recommendedActions
       } : null,
       riskLevel,
-      aiEnhanced: !!aiAnalysis
+      aiEnhanced: !!aiAnalysis,
+      customerId: chargeCustomerId,
+      order_id: chargeOrderId,
+      refunded: chargeRefunded
     });
     
     if(evt.type === 'charge.dispute.created'){

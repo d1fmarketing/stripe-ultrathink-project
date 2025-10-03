@@ -70,6 +70,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     
     // Use validated input
     const input = (event as any).validatedInput || event.queryStringParameters || {};
+    const limit = input.limit !== undefined ? Number(input.limit) : undefined;
     let merchantId = input.merchant || authContext.merchant_id || '';
     
     if (!merchantId) {
@@ -97,8 +98,12 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     );
     
     // Get additional case data from database
-    const dbCases = await listCases(merchantId, input.status);
-    const caseMap = new Map(dbCases.map((c: any) => [c.dispute_id, c]));
+    const dbCaseResult = await listCases(merchantId, {
+      status: input.status,
+      limit,
+      cursor: input.cursor
+    });
+    const caseMap = new Map((dbCaseResult.items || []).map((c: any) => [c.dispute_id, c]));
     
     // Merge Stripe data with database data
     const disputes = stripeDisputes.data.map(dispute => {

@@ -55,11 +55,16 @@ export class WebhookIdempotencyService {
           processedAt: new Date().toISOString(),
           ttl, // DynamoDB will auto-delete after 24 hours
           metadata: metadata || {}
-        }
+        },
+        ConditionExpression: 'attribute_not_exists(pk) AND attribute_not_exists(sk)'
       }));
-      
+
       console.log(`[IDEMPOTENCY] Marked webhook as processed: ${eventId}`);
     } catch (error) {
+      if ((error as any)?.name === 'ConditionalCheckFailedException') {
+        console.log(`[IDEMPOTENCY] Event already processed: ${eventId}`);
+        return;
+      }
       console.error('[IDEMPOTENCY] Error marking processed:', error);
       // Continue processing even if we can't mark it
     }

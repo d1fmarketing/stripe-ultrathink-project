@@ -259,7 +259,7 @@ export const commonSchemas = {
   
   pagination: {
     limit: { type: 'number' as const, min: 1, max: 100, required: false },
-    offset: { type: 'number' as const, min: 0, required: false }
+    cursor: { type: 'string' as const, required: false, sanitize: true }
   },
   
   disputeStatus: {

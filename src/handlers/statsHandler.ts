@@ -1,8 +1,9 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import { DynamoDBClient, ScanCommand, QueryCommand } from '@aws-sdk/client-dynamodb';
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { DynamoDBDocumentClient, ScanCommand } from '@aws-sdk/lib-dynamodb';
 import Redis from 'ioredis';
 
-const dynamodb = new DynamoDBClient({ region: 'us-east-1' });
+const dynamodb = DynamoDBDocumentClient.from(new DynamoDBClient({ region: 'us-east-1' }));
 const CASES_TABLE = process.env.CASES_TABLE || 'chargeback-autopilot-stripe-prod-CasesTable-1LPIUKCN82FYI';
 const CACHE_TTL = 300; // 5 minutes cache
 
@@ -57,16 +58,22 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     
     // If no cache, query DynamoDB
     if (!stats) {
-      const scanCommand = new ScanCommand({
-        TableName: CASES_TABLE,
-        ProjectionExpression: 'dispute_id, #status, amount_cents, ce3_eligible, created_at, processing_time_ms',
-        ExpressionAttributeNames: {
-          '#status': 'status'
-        }
-      });
-      
-      const response = await dynamodb.send(scanCommand);
-      const items = response.Items || [];
+      const items: any[] = [];
+      let lastEvaluatedKey: Record<string, any> | undefined;
+
+      do {
+        const response = await dynamodb.send(new ScanCommand({
+          TableName: CASES_TABLE,
+          ProjectionExpression: 'dispute_id, #status, amount_cents, ce3_eligible, created_at_epoch, processing_time_ms',
+          ExpressionAttributeNames: {
+            '#status': 'status'
+          },
+          ExclusiveStartKey: lastEvaluatedKey
+        }));
+
+        items.push(...(response.Items || []));
+        lastEvaluatedKey = response.LastEvaluatedKey;
+      } while (lastEvaluatedKey);
       
       // Calculate real metrics
       let totalDisputes = 0;
@@ -82,9 +89,13 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       items.forEach(item => {
         totalDisputes++;
         
-        const status = item.status?.S || 'pending';
-        const amount = parseInt(item.amount_cents?.N || '0');
-        const processingTime = parseInt(item.processing_time_ms?.N || '0');
+        const status = item.status || 'pending';
+        const amount = typeof item.amount_cents === 'number'
+          ? item.amount_cents
+          : parseInt(item.amount_cents ?? '0', 10);
+        const processingTime = typeof item.processing_time_ms === 'number'
+          ? item.processing_time_ms
+          : parseInt(item.processing_time_ms ?? '0', 10);
         
         totalAmount += amount;
         
@@ -97,7 +108,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
           disputesPending++;
         }
         
-        if (item.ce3_eligible?.BOOL) {
+        if (item.ce3_eligible === true || item.ce3_eligible === 'true') {
           ce30Eligible++;
         }
         

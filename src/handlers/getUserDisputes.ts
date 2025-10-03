@@ -28,7 +28,14 @@ export async function handler(event: any) {
   
   try {
     // Get disputes for this user's merchant account only
-    const items = await listCases(authContext.merchant_id, status);
+    const inputCursor = qs.cursor;
+    const limit = qs.limit !== undefined ? Number(qs.limit) : undefined;
+    const { items, cursor } = await listCases(authContext.merchant_id, {
+      status,
+      cursor: inputCursor,
+      limit,
+      sortBy: 'due'
+    });
     
     // Format response
     const disputes = items.map((item: any) => ({
@@ -57,7 +64,8 @@ export async function handler(event: any) {
     return ok({
       items: disputes,
       stats,
-      merchant_id: authContext.merchant_id
+      merchant_id: authContext.merchant_id,
+      cursor
     });
     
   } catch (error: any) {
